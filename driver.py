@@ -51,34 +51,34 @@ print(sys.argv)
 
 # File I/O
 data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR = "debug"
+SAVE_STR = "debug_longer"
 SAVE_AFTER = 10                                              # save to disk after this many epochs
-FLAG_save_model = not True
+FLAG_save_model = True
 FLAG_L1 = True
 FLAG_BEST = True    # evaluate on best model if true; else eval on last epoch
 
 # Sample size
-N_train = 1900      # N_train_max = 10000
+N_train = 9500      # N_train_max = 10000
 N_val = 100
 N_test = 400
 assert N_train + N_val + N_test <= 10000
 
 # TODO: diff res for train, val, test
 # Resolution subsampling
-sub_in = 2**3       # input subsample factor (power of two) from s_max_out = 512
-sub_out = 2**2      # output subsample factor (power of two) from s_max_out = 256
+sub_in = 2**2       # input subsample factor (power of two) from s_max_out = 512
+sub_out = 2**1      # output subsample factor (power of two) from s_max_out = 256
 
 # FNO
 modes1 = 12
 modes2 = 12
-width = 64
+width = 48
 width_final = 256
 act = 'relu'
 n_layers = 2
 
 # Training
-batch_size = 5
-epochs = 50
+batch_size = 32
+epochs = 250
 learning_rate = 8e-3
 weight_decay = 1e-4
 scheduler_step = 50
@@ -254,6 +254,8 @@ for ep in tqdm(range(epochs)):
 # Final save
 if FLAG_save_model:
     torch.save(model.state_dict(), save_path + 'model_last.pt')
+if lowest_val_ep >= epochs - 1:
+    torch.save(model.state_dict(), save_path + 'model.pt')
 
 end = default_timer()
 print("Total time for", epochs, "epochs is", (end-start)/3600, "hours.")
