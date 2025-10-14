@@ -138,5 +138,8 @@ plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handleleng
 plt.grid(True, which="both")
 plt.tight_layout()
 if FLAG_save_plots:
-    plt.savefig("./results/" + exp_date + "/" + 'samplesize' + '.pdf', format='pdf')
+    if FLAG_WIDE:
+        plt.savefig("./results/" + exp_date + "/" + 'samplesize_wide' + '.pdf', format='pdf')
+    else:
+        plt.savefig("./results/" + exp_date + "/" + 'samplesize' + '.pdf', format='pdf')
 plt.show()
