@@ -126,6 +126,19 @@ def resize_rfft2(ar, s):
     out = resize_rfft(ar, s2) # last axis (rfft)
     return resize_fft(out.transpose(-2,-1), s1).transpose(-2,-1) # second to last axis (fft)
 
+
+def resize_fft2(ar, s):
+    """
+    Truncates or zero pads the highest frequencies of ``ar'' such that torch.fft.ifft2(ar, s=s) is either an interpolation to a finer grid or a subsampling to a coarser grid.
+    Args
+        ar: (n, c, N_1, N_2) tensor
+        s: (2) tuple, s=(s_1, s_2) desired ifft2 output dimension (s_i >=1)
+    Output
+        out: (n, c, s1, s_2) tensor
+    """
+    s1, s2 = s
+    out = resize_fft(ar, s2) # last axis (fft)
+    return resize_fft(out.transpose(-2,-1), s1).transpose(-2,-1) # second to last axis (fft)
     
 def get_grid2d(shape, device):
     """
@@ -147,7 +160,23 @@ def projector2d(x, s=None):
         x = fft.irfft2(resize_rfft2(fft.rfft2(x, norm="forward"), s), s=s, norm="forward")
         
     return x
-    
+
+
+def process_raw_ntd(ntd, s):
+    """
+    Adds missing zero Fourier modes to the raw data
+    Truncates or zero pads the highest frequencies in last two axes
+    Removes negative frequencies in the -2 axis
+    Args
+        ntd:    (n, c, N1 - 1, N2 - 1) tensor in fft2 format WITHOUT 0 wavenumbers
+        s:      (2) tuple, s=(s_1, s_2) desired ifft2 output dimension (s_i >=1)
+    Output
+        out:    (n, c, s1//2 + 1, s_2) tensor
+    """
+    ntd = F.pad(ntd, [1, 0, 1, 0])
+    ntd = resize_fft2(ntd, s)
+    ntd = ntd[..., :(ntd.shape[-2] + 1)//2 + 1, :]
+    return ntd
 
 ################################################################
 #

@@ -1,4 +1,4 @@
-# learn-eit
+# learning-eit (OLD BELOW, TODO UPDATE README)
 Forward solves divergence-form elliptic equation for Neumann/Dirichlet data pairs given a electrical conducitivity field on the unit disk; linear Gaussian Bayesian inversion for Neumann-to-Dirichlet (NtD) and Dirichlet-to-Neumann (DtN) maps; approximates the electrical impedance tomography (EIT) inversion operator with a Fourier Neural Operator-based Operator Recurrent Neural Network (OR-FNO), i.e., DtN input is operator-valued; learns an approximation from this class from noisy input-output data pairs. For comparison, also includes the regularized D-bar method as a direct inversion method for EIT
 
 ## Requirements
