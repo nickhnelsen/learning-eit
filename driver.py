@@ -18,9 +18,8 @@ from datetime import datetime
 # initialize
 #
 ################################################################
-# TODO: fix path with variables
 # Output directory
-def make_save_path(save_str, pth = "/fno_exp_"):
+def make_save_path(save_str, pth = "/"):
     save_path = "results/" + datetime.today().strftime('%Y-%m-%d') + pth + save_str +"/"
     return save_path
 
@@ -31,9 +30,6 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-
-seed = 42
-set_seed(seed)
 
 torch.set_printoptions(precision=16)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -49,41 +45,48 @@ print("Device is", device)
 print(sys.argv)
 
 
+seed = 42 + 0 # TODO: sysargv MC idx
+if seed is not None:
+    set_seed(seed)
+
 # File I/O
 data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR = "debug_longer"
-SAVE_AFTER = 10                                              # save to disk after this many epochs
+SAVE_STR = "debug_res"
+SAVE_AFTER = 10     # save to disk after this many epochs
 FLAG_save_model = True
 FLAG_L1 = True
 FLAG_BEST = True    # evaluate on best model if true; else eval on last epoch
 
 # Sample size
-N_train = 9500      # N_train_max = 10000
+N_train = 4500      # TODO: 2**4 to 2**12 + 9500
 N_val = 100
 N_test = 400
-assert N_train + N_val + N_test <= 10000
+assert N_train + N_val + N_test <= 10000    # N_train_max = 10000
 
 # TODO: diff res for train, val, test
 # Resolution subsampling
-sub_in = 2**2       # input subsample factor (power of two) from s_max_out = 512
-sub_out = 2**1      # output subsample factor (power of two) from s_max_out = 256
+sub_in = 2**3       # input subsample factor (power of two) from s_max_out = 512
+sub_out = 2**2      # output subsample factor (power of two) from s_max_out = 256
+sub_in_test = 2**1
+sub_out_test = 2**0
+assert sub_in_test <= sub_in and sub_out_test <= sub_out
 
 # FNO
-modes1 = 12
-modes2 = 12
-width = 48
-width_final = 256
-act = 'relu'
-n_layers = 2
+modes1 = 12         # default: 12
+modes2 = 12         # default: 12
+width = 48          # default: 48
+width_final = 256   # default: 256
+act = 'relu'        # default: 'relu' for rough, 'gelu' for smooth
+n_layers = 2        # default: 2
 
 # Training
 batch_size = 32
-epochs = 250
+epochs = 5
 learning_rate = 8e-3
 weight_decay = 1e-4
 scheduler_step = 50
 scheduler_gamma = 0.5
-scheduler_iters = epochs #*(N_train//batch_size)
+scheduler_iters = epochs
 scheduler_patience = 5
 scheduler_name = 'CosineAnnealingLR'        # 'CosineAnnealingLR' or 'StepLR'
 FLAG_reduce = False                         # use ReduceLROnPlateau
@@ -93,24 +96,24 @@ FLAG_reduce = False                         # use ReduceLROnPlateau
 # load and process data
 #
 ################################################################
+# TODO: fix path with user variables (noise value)
+SAVE_STR = SAVE_STR + "_Seed" + str(seed) + "_N" + str(N_train)
 save_path = make_save_path(SAVE_STR)
 os.makedirs(save_path, exist_ok=True)
 
 start = default_timer()
 
-x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)['kernel_3heart'][...,::sub_in,::sub_in]
-y_test3 = torch.load(data_folder + 'conductivity_3heart_rhop7.pt', weights_only=True)['conductivity_3heart'][...,::sub_out,::sub_out]
-
-x_test33 = torch.load(data_folder + 'kernel_3heart.pt', weights_only=True)['kernel_3heart'][...,::sub_in,::sub_in]
-y_test33 = torch.load(data_folder + 'conductivity_3heart.pt', weights_only=True)['conductivity_3heart'][...,::sub_out,::sub_out]
-
+x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)['kernel_3heart'][...,::sub_in_test,::sub_in_test]
+y_test3 = torch.load(data_folder + 'conductivity_3heart_rhop7.pt', weights_only=True)['conductivity_3heart'][...,::sub_out_test,::sub_out_test]
 y_test3 = torch.flip(y_test3, [-2])
-y_test33 = torch.flip(y_test33, [-2])
 
-x_train = torch.load(data_folder + 'kernel.pt', weights_only=True)['kernel'][...,::sub_in,::sub_in]
-y_train = torch.load(data_folder + 'conductivity.pt', weights_only=True)['conductivity'][...,::sub_out,::sub_out]
-mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out,::sub_out]
-mask = mask.to(device)
+sub_in_ratio = sub_in//sub_in_test
+sub_out_ratio = sub_out//sub_out_test
+x_train = torch.load(data_folder + 'kernel.pt', weights_only=True)['kernel'][...,::sub_in_test,::sub_in_test]
+y_train = torch.load(data_folder + 'conductivity.pt', weights_only=True)['conductivity'][...,::sub_out_test,::sub_out_test]
+mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out_test,::sub_out_test]
+mask_test = mask.to(device)
+mask = mask_test[::sub_out_ratio,::sub_out_ratio].to(device)
 
 # TODO: fix same test data for all experiments; then do random index selection for train
 x_test = x_train[-(N_val + N_test):,...]
@@ -119,21 +122,21 @@ x_test = x_test[-N_test:,...]
 x_train = x_train[:N_train,...]
 
 y_test = y_train[-(N_val + N_test):,...]
-y_val = y_test[:N_val,...]
+y_val = y_test[:N_val,::sub_out_ratio,::sub_out_ratio]
 y_test = y_test[-N_test:,...]
-y_train = y_train[:N_train,...]
+y_train = y_train[:N_train,::sub_out_ratio,::sub_out_ratio]
 
 x_normalizer = UnitGaussianNormalizer(x_train)
-x_train = x_normalizer.encode(x_train)
-x_val = x_normalizer.encode(x_val)
+x_train = x_normalizer.encode(x_train)[:,::sub_in_ratio,::sub_in_ratio]
+x_val = x_normalizer.encode(x_val)[:,::sub_in_ratio,::sub_in_ratio]
 x_test = x_normalizer.encode(x_test)
+x_test3 = x_normalizer.encode(x_test3)
 
 # Make the singleton channel dimension match the FNO2D model input shape requirement
 x_train = torch.unsqueeze(x_train, 1)
 x_val = torch.unsqueeze(x_val, 1)
 x_test = torch.unsqueeze(x_test, 1)
-x_test3 = x_normalizer.encode(torch.unsqueeze(x_test3, 1))
-x_test33 = x_normalizer.encode(torch.unsqueeze(x_test33, 1))
+x_test3 = torch.unsqueeze(x_test3, 1)
 
 # Data loaders
 train_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
@@ -146,16 +149,14 @@ print("Total time for data processing is", (default_timer()-start), "sec.")
 # training
 #
 ################################################################
-s_outputspace = tuple(y_test.shape[-2:])   # same output shape as the output dataset
-
 model = my_model(modes1=modes1,
                  modes2=modes2,
                  width=width,
-                 s_outputspace=s_outputspace, 
                  width_final=width_final,
                  act=act,
                  n_layers=n_layers
                  ).to(device)
+print(model)
 print("FNO parameter count:", count_params(model))
 
 optimizer = my_optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -181,7 +182,7 @@ else: # use L2 norm to train
     loss_ff = LpLoss(p=1, size_average=False)
 
 
-errors = torch.zeros((epochs,4))
+errors = torch.zeros((epochs, 4))
 lowest_val = 10.0  # initialize a test loss threshold
 lowest_val_ep = epochs - 1
 start = default_timer()
@@ -270,7 +271,6 @@ print("Lowest validation error occurs in epoch", lowest_val_ep + 1)
 # TODO: change model output res for visualization
 # s_outputspace = tuple(y_test.shape[-2:])   # same output shape as the output dataset
 
-
 train_loader = DataLoader(TensorDatasetID(x_train, y_train), batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(TensorDatasetID(x_test, y_test), batch_size=batch_size, shuffle=False)
 
@@ -328,7 +328,7 @@ with torch.no_grad():
     for x, y, idx_test in test_loader:
         x, y = x.to(device), y.to(device)
 
-        out = model(x)*mask + ~mask # set model to one outside unit disk of radius 1
+        out = model(x)*mask_test + ~mask_test # set model to one outside unit disk of radius 1
 
         test_loss += loss_f(out, y).item()
         test_other += loss_ff(out, y).item()
@@ -353,18 +353,14 @@ else:
 ################################################################
 plot_folder = save_path + "figures/"
 os.makedirs(plot_folder, exist_ok=True)
-mask_plot = torch.clone(mask).cpu()
-out_train[:, ~mask_plot] = float('nan')
-out_test[:, ~mask_plot] = float('nan')
+out_train[:, ~mask.cpu()] = float('nan')
+out_test[:, ~mask_test.cpu()] = float('nan')
 
 # Phantom three evaluations
 with torch.no_grad():
-    out3 = model(x_test3.to(device))*mask + ~mask
+    out3 = model(x_test3.to(device))*mask_test + ~mask_test
     out3 = out3.squeeze().cpu()
-    out33 = model(x_test33.to(device))*mask + ~mask
-    out33 = out33.squeeze().cpu()
-out3[:, ~mask_plot] = float('nan')
-out33[:, ~mask_plot] = float('nan')
+out3[:, ~mask_test.cpu()] = float('nan')
 
 # %% Errors
 plt.close()
@@ -392,7 +388,7 @@ for loop in range(2):
     for i in range(3):
         idx = idxs[i][loop].item()
         true_trainsort = y_train[idx,...].squeeze()
-        true_trainsort[~mask_plot] = float('nan')
+        true_trainsort[~mask.cpu()] = float('nan')
         plot_trainsort = out_train[idx,...].squeeze()
         er_trainsort = torch.abs(plot_trainsort - true_trainsort).squeeze()
         
@@ -434,7 +430,7 @@ for loop in range(2):
     for i in range(3):
         idx = idxs[i][loop].item()
         true_testsort = y_test[idx,...].squeeze()
-        true_testsort[~mask_plot] = float('nan')
+        true_testsort[~mask_test.cpu()] = float('nan')
         plot_testsort = out_test[idx,...].squeeze()
         er_testsort = torch.abs(plot_testsort - true_testsort).squeeze()
         
@@ -467,7 +463,7 @@ for loop in range(2):
 # pind_train = torch.randint(N_train, [1]).item()
 # 
 # true_train = y_train[pind_train,...].squeeze()
-# true_train[~mask_plot] = float('nan')
+# true_train[~mask.cpu()] = float('nan')
 # plot_train = out_train[pind_train,...].squeeze()
 # er_train = torch.abs(plot_train - true_train).squeeze()
 # 
@@ -502,7 +498,7 @@ for loop in range(2):
 # pind_test = torch.randint(N_test, [1]).item()
 # 
 # true_test = y_test[pind_test,...].squeeze()
-# true_test[~mask_plot] = float('nan')
+# true_test[~mask_test.cpu()] = float('nan')
 # plot_test = out_test[pind_test,...].squeeze()
 # er_test = torch.abs(plot_test - true_test).squeeze()
 # 
@@ -535,7 +531,7 @@ plt.close("all")
 
 for i in range(3):
     true_test3 = y_test3[i,...].squeeze()
-    true_test3[~mask_plot] = float('nan')
+    true_test3[~mask_test.cpu()] = float('nan')
     plot_test3 = out3[i,...].squeeze()
     er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
     
@@ -560,31 +556,3 @@ for i in range(3):
     plt.tight_layout()
 
     plt.savefig(plot_folder + "eval_phantom_rhop7_" + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
-    
-for i in range(3):
-    true_test3 = y_test33[i,...].squeeze()
-    true_test3[~mask_plot] = float('nan')
-    plot_test3 = out33[i,...].squeeze()
-    er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
-    
-    plt.close()
-    plt.figure(22, figsize=(9, 9))
-    plt.subplot(2,2,1)
-    plt.title('Test Output')
-    plt.imshow(plot_test3, origin='lower', interpolation='none')
-    plt.box(False)
-    plt.subplot(2,2,2)
-    plt.title('Test Truth')
-    plt.imshow(true_test3, origin='lower', interpolation='none')
-    plt.box(False)
-    plt.subplot(2,2,3)
-    plt.title('Test Input')
-    plt.imshow(x_test33[i,...].squeeze(), origin='lower')
-    plt.subplot(2,2,4)
-    plt.title('Test PW Error')
-    plt.imshow(er_test3, origin='lower')
-    plt.box(False)
-    plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-    plt.tight_layout()
-
-    plt.savefig(plot_folder + "eval_phantom" + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
