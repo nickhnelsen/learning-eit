@@ -168,3 +168,23 @@ fno_kernel/figures
 **/green_LS.mat
 **/solver/LS_cgo_2D/data/
 **/results/
+
+# ---------------------------------------------------------------------------
+# Overrides: always include useful scripts and configuration files
+# ---------------------------------------------------------------------------
+
+# Always include Bash scripts, even if they match z_* or job_* patterns
+!*.sh
+
+# Always include Makefiles and configuration files
+!Makefile
+!*.cfg
+!*.ini
+!*.toml
+!*.yaml
+!*.yml
+
+# Always include Slurm job files or similar scripts
+!*.sbatch
+!*.slurm
+

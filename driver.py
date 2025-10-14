@@ -41,32 +41,31 @@ print("Device is", device)
 # user configuration
 #
 ################################################################
-# TODO: add args for N_train and noise level
+# TODO: add args for N_train and noise level and seed/MC index
 print(sys.argv)
-
-
-seed = 42 + 0 # TODO: sysargv MC idx
+N_train = int(sys.argv[1])
+noise = int(sys.argv[2])  # TODO: 0 for zero 1 for X percent noise
+seed = int(sys.argv[3]) # TODO: sysargv MC idx
 if seed is not None:
     set_seed(seed)
 
 # File I/O
 data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR = "debug_res"
+SAVE_STR = "paper_loop_debug"
 SAVE_AFTER = 10     # save to disk after this many epochs
 FLAG_save_model = True
 FLAG_L1 = True
 FLAG_BEST = True    # evaluate on best model if true; else eval on last epoch
+FLAG_MEAN_REDUCTION = True
 
 # Sample size
-N_train = 4500      # TODO: 2**4 to 2**12 + 9500
 N_val = 100
 N_test = 400
 assert N_train + N_val + N_test <= 10000    # N_train_max = 10000
 
-# TODO: diff res for train, val, test
 # Resolution subsampling
-sub_in = 2**3       # input subsample factor (power of two) from s_max_out = 512
-sub_out = 2**2      # output subsample factor (power of two) from s_max_out = 256
+sub_in = 2**2       # input subsample factor (power of two) from s_max_out = 512
+sub_out = 2**1      # output subsample factor (power of two) from s_max_out = 256
 sub_in_test = 2**1
 sub_out_test = 2**0
 assert sub_in_test <= sub_in and sub_out_test <= sub_out
@@ -81,7 +80,7 @@ n_layers = 2        # default: 2
 
 # Training
 batch_size = 32
-epochs = 5
+epochs = 250
 learning_rate = 8e-3
 weight_decay = 1e-4
 scheduler_step = 50
@@ -97,7 +96,7 @@ FLAG_reduce = False                         # use ReduceLROnPlateau
 #
 ################################################################
 # TODO: fix path with user variables (noise value)
-SAVE_STR = SAVE_STR + "_Seed" + str(seed) + "_N" + str(N_train)
+SAVE_STR = SAVE_STR + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + str(seed)
 save_path = make_save_path(SAVE_STR)
 os.makedirs(save_path, exist_ok=True)
 
@@ -174,12 +173,13 @@ if FLAG_reduce:
                                                                factor=scheduler_gamma,
                                                                patience=scheduler_patience)
 
+# Set loss and minibatch reduction type
 if FLAG_L1: # use L1 norm to train
-    loss_f = LpLoss(p=1, size_average=False)
-    loss_ff = LpLoss(size_average=False)
+    loss_f = LpLoss(p=1, size_average=FLAG_MEAN_REDUCTION)
+    loss_ff = LpLoss(size_average=FLAG_MEAN_REDUCTION)
 else: # use L2 norm to train
-    loss_f = LpLoss(size_average=False)
-    loss_ff = LpLoss(p=1, size_average=False)
+    loss_f = LpLoss(size_average=FLAG_MEAN_REDUCTION)
+    loss_ff = LpLoss(p=1, size_average=FLAG_MEAN_REDUCTION)
 
 
 errors = torch.zeros((epochs, 4))
@@ -220,10 +220,16 @@ for ep in tqdm(range(epochs)):
             val_loss += loss_f(out, y).item()
             val_other += loss_ff(out, y).item()
 
-    train_loss /= N_train
-    val_loss /= N_val
-    train_other /= N_train
-    val_other /= N_val
+    if FLAG_MEAN_REDUCTION:
+        train_loss /= len(train_loader)
+        val_loss /= len(val_loader)
+        train_other /= len(train_loader)
+        val_other /= len(val_loader)
+    else:
+        train_loss /= N_train
+        val_loss /= N_val
+        train_other /= N_train
+        val_other /= N_val
     
     scheduler.step()
     if FLAG_reduce:
@@ -268,9 +274,6 @@ print("Lowest validation error occurs in epoch", lowest_val_ep + 1)
 # evaluation on train and test sets
 #
 ################################################################
-# TODO: change model output res for visualization
-# s_outputspace = tuple(y_test.shape[-2:])   # same output shape as the output dataset
-
 train_loader = DataLoader(TensorDatasetID(x_train, y_train), batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(TensorDatasetID(x_test, y_test), batch_size=batch_size, shuffle=False)
 
@@ -281,6 +284,7 @@ if FLAG_save_model:
         model.load_state_dict(torch.load(save_path + 'model_last.pt', weights_only=True))
 model.eval()
 
+# Assumes sum reduction for exact loss calculations
 if FLAG_L1:
     loss_f = LpLoss(p=1, size_average=False)
     loss_vec = LpLoss(p=1, size_average=False, reduction=False)
@@ -345,6 +349,10 @@ if FLAG_L1:
     print(f'Test L1: {test_loss}, Test L2: {test_other}, Time (sec): {t2-t1}')
 else:
     print(f'Test L2: {test_loss}, Test L1: {test_other}, Time (sec): {t2-t1}')
+    
+# Save final test errors
+torch.save(torch.tensor((test_loss, test_other)), save_path + 'test_errors.pt')
+
     
 ################################################################
 #
