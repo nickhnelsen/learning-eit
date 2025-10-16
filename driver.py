@@ -4,9 +4,10 @@ import torch
 from models import FNO2d as my_model
 from util import AdamW as my_optimizer
 from util import plt
-from util.utilities_module import LpLoss, UnitGaussianNormalizer, count_params, dataset_with_indices
+from util.utilities_module import LpLoss, L0Loss, RatioLoss, UnitGaussianNormalizer, count_params, dataset_with_indices
 from torch.utils.data import TensorDataset, DataLoader
 TensorDatasetID = dataset_with_indices(TensorDataset)
+import copy
 
 from tqdm import tqdm
 from timeit import default_timer
@@ -39,24 +40,22 @@ print("Device is", device)
 ################################################################
 #
 # user configuration
+#TODO: move all to config file, then save config to save_path
 #
 ################################################################
-# TODO: add args for N_train and noise level and seed/MC index
+# TODO: add args for noise level and seed/MC index
 print(sys.argv)
 N_train = int(sys.argv[1])
-noise = int(sys.argv[2])  # TODO: 0 for zero 1 for X percent noise
-seed = int(sys.argv[3]) # TODO: sysargv MC idx
+noise = int(sys.argv[2])  # TODO: 0 for zero 1 for X percent noise; todo sample noise
+seed = int(sys.argv[3])
 if seed is not None:
     set_seed(seed)
 
 # File I/O
 data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR = "paper_loop_debug"
+SAVE_STR = "debug_eval_losses"
 SAVE_AFTER = 10     # save to disk after this many epochs
 FLAG_save_model = True
-FLAG_L1 = True
-FLAG_BEST = True    # evaluate on best model if true; else eval on last epoch
-FLAG_MEAN_REDUCTION = True
 
 # Sample size
 N_val = 100
@@ -75,10 +74,10 @@ modes1 = 12         # default: 12
 modes2 = 12         # default: 12
 width = 48          # default: 48
 width_final = 256   # default: 256
-act = 'relu'        # default: 'relu' for rough, 'gelu' for smooth
+act = 'relu'        # default: 'relu' for rough outputs, 'gelu' for smooth outputs
 n_layers = 2        # default: 2
 
-# Training
+# Training, evaluation, and testing
 batch_size = 32
 epochs = 250
 learning_rate = 8e-3
@@ -89,6 +88,20 @@ scheduler_iters = epochs
 scheduler_patience = 5
 scheduler_name = 'CosineAnnealingLR'        # 'CosineAnnealingLR' or 'StepLR'
 FLAG_reduce = False                         # use ReduceLROnPlateau
+FLAG_BEST = True                            # evaluate on best model if true; else eval on last epoch
+FLAG_MEAN_REDUCTION = True                  # more stable to choice of batch size
+train_loss_str = "L1"
+eval_loss_str_list = ["L1", "L2", "Ratio"]
+
+# Check losses
+valid_losses = {"L1", "L2", "L0", "Ratio"}
+if train_loss_str not in valid_losses:
+    raise ValueError(f"Invalid value for train_loss_str: {train_loss_str}. Must be one of {sorted(valid_losses)}.")
+for loss in eval_loss_str_list:
+    if loss not in valid_losses:
+        raise ValueError(f"Invalid value for eval loss: {loss}. Must be one of {sorted(valid_losses)}.")
+if train_loss_str != eval_loss_str_list[0]:
+    raise ValueError("Train loss must be included in eval loss and in the first entry of the list")
 
 ################################################################
 #
@@ -159,6 +172,8 @@ print(model)
 print("FNO parameter count:", count_params(model))
 
 optimizer = my_optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+print(optimizer)
+
 if scheduler_name == 'CosineAnnealingLR':
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
                                                            T_max=scheduler_iters)
@@ -168,29 +183,29 @@ elif scheduler_name == 'StepLR':
                                                 gamma=scheduler_gamma)
 else:
     raise ValueError(f'Got {scheduler_name=}')
+print(scheduler)
 if FLAG_reduce:
     scheduler_val = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                factor=scheduler_gamma,
                                                                patience=scheduler_patience)
 
 # Set loss and minibatch reduction type
-if FLAG_L1: # use L1 norm to train
-    loss_f = LpLoss(p=1, size_average=FLAG_MEAN_REDUCTION)
-    loss_ff = LpLoss(size_average=FLAG_MEAN_REDUCTION)
-else: # use L2 norm to train
-    loss_f = LpLoss(size_average=FLAG_MEAN_REDUCTION)
-    loss_ff = LpLoss(p=1, size_average=FLAG_MEAN_REDUCTION)
+num_eval_losses = len(eval_loss_str_list)
+loss_dict = {"L1": LpLoss(p=1, size_average=FLAG_MEAN_REDUCTION), 
+             "L2": LpLoss(p=2, size_average=FLAG_MEAN_REDUCTION),
+             "L0": L0Loss(size_average=FLAG_MEAN_REDUCTION),
+             "Ratio": RatioLoss(size_average=FLAG_MEAN_REDUCTION)
+}
+loss_f = loss_dict[train_loss_str]
 
-
-errors = torch.zeros((epochs, 4))
-lowest_val = 10.0  # initialize a test loss threshold
+errors_train_hist = torch.zeros((epochs, num_eval_losses))
+errors_val_hist = torch.zeros((epochs, num_eval_losses))
+lowest_val = 10.0   # initialize a test loss threshold
 lowest_val_ep = epochs - 1
+best_state = copy.deepcopy(model.state_dict())
+
 start = default_timer()
 for ep in tqdm(range(epochs)):
-    t1 = default_timer()
-
-    train_loss = 0.0
-    train_other = 0.0
     model.train()
     for x, y in train_loader:
         x, y = x.to(device), y.to(device)
@@ -205,69 +220,54 @@ for ep in tqdm(range(epochs)):
         optimizer.step()
         
         with torch.no_grad():
-            train_loss += loss.item()
-            train_other += loss_ff(out, y).item()
+            errors_train_hist[ep, 0] += loss.item()
+            for i in range(num_eval_losses - 1):
+                errors_train_hist[ep, i + 1] += loss_dict[eval_loss_str_list[i + 1]](out, y).item()
 
     model.eval()
-    val_loss = 0.0
-    val_other = 0.0
     with torch.no_grad():
         for x, y in val_loader:
             x, y = x.to(device), y.to(device)
 
             out = model(x)*mask + ~mask # set model to one outside unit disk of radius 1
 
-            val_loss += loss_f(out, y).item()
-            val_other += loss_ff(out, y).item()
+            for i, my_str in enumerate(eval_loss_str_list):
+                errors_val_hist[ep, i] += loss_dict[my_str](out, y).item()
 
     if FLAG_MEAN_REDUCTION:
-        train_loss /= len(train_loader)
-        val_loss /= len(val_loader)
-        train_other /= len(train_loader)
-        val_other /= len(val_loader)
+        errors_train_hist[ep, ...] /= len(train_loader)
+        errors_val_hist[ep, ...] /= len(val_loader)
     else:
-        train_loss /= N_train
-        val_loss /= N_val
-        train_other /= N_train
-        val_other /= N_val
+        errors_train_hist[ep, ...] /= N_train
+        errors_val_hist[ep, ...] /= N_val
     
     scheduler.step()
     if FLAG_reduce:
-        scheduler_val.step(val_loss)
-
-    errors[ep,0] = train_loss
-    errors[ep,1] = val_loss
-    errors[ep,2] = train_other
-    errors[ep,3] = val_other
-
+        scheduler_val.step(errors_val_hist[ep, 0])
+           
+    if errors_val_hist[ep, 0] < lowest_val:
+        lowest_val = errors_val_hist[ep, 0]
+        lowest_val_ep = ep
+        best_state = copy.deepcopy(model.state_dict())
+        
     if FLAG_save_model:
         if not (ep % SAVE_AFTER):
             torch.save(model.state_dict(), save_path + 'model_last.pt')
-            
-        if val_loss < lowest_val:
-            torch.save(model.state_dict(), save_path + 'model.pt')
-            lowest_val = val_loss
-            lowest_val_ep = ep
+            torch.save(best_state, save_path + 'model_best.pt')
 
-    t2 = default_timer()
-    ep_time = t2 - t1
+    torch.save(errors_train_hist, save_path + 'errors_train_hist.pt')
+    torch.save(errors_val_hist, save_path + 'errors_val_hist.pt')
 
-    torch.save({'errors': errors}, save_path + 'errors.pt')
-    if FLAG_L1:
-        print(f'Epoch [{ep+1}/{epochs}], Train L1: {train_loss}, Val L1: {val_loss}, Train L2: {train_other}, Val L2: {val_other}, Time (sec): {ep_time}')
-    else:
-        print(f'Epoch [{ep+1}/{epochs}], Train L2: {train_loss}, Val L2: {val_loss}, Train L1: {train_other}, Val L1: {val_other}, Time (sec): {ep_time}')
+    print(f'Train {train_loss_str}: {errors_train_hist[ep,0]}, Val {train_loss_str}: {errors_val_hist[ep,0]}')
 
 # Final save
 if FLAG_save_model:
     torch.save(model.state_dict(), save_path + 'model_last.pt')
-if lowest_val_ep >= epochs - 1:
-    torch.save(model.state_dict(), save_path + 'model.pt')
+    torch.save(best_state, save_path + 'model_best.pt')
 
 end = default_timer()
 print("Total time for", epochs, "epochs is", (end-start)/3600, "hours.")
 print("Lowest validation error occurs in epoch", lowest_val_ep + 1)
-
 
 ################################################################
 #
@@ -277,83 +277,69 @@ print("Lowest validation error occurs in epoch", lowest_val_ep + 1)
 train_loader = DataLoader(TensorDatasetID(x_train, y_train), batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(TensorDatasetID(x_test, y_test), batch_size=batch_size, shuffle=False)
 
-if FLAG_save_model:
-    if FLAG_BEST:
-        model.load_state_dict(torch.load(save_path + 'model.pt', weights_only=True))
-    else:
-        model.load_state_dict(torch.load(save_path + 'model_last.pt', weights_only=True))
+if FLAG_BEST:
+    model.load_state_dict(best_state)
+
 model.eval()
 
 # Assumes sum reduction for exact loss calculations
-if FLAG_L1:
-    loss_f = LpLoss(p=1, size_average=False)
-    loss_vec = LpLoss(p=1, size_average=False, reduction=False)
-    loss_ff = LpLoss(size_average=False)
-    loss_vecf = LpLoss(size_average=False, reduction=False)
-else:
-    loss_f = LpLoss(size_average=False)
-    loss_vec = LpLoss(size_average=False, reduction=False)
-    loss_ff = LpLoss(p=1, size_average=False)
-    loss_vecf = LpLoss(p=1, size_average=False, reduction=False)
+loss_dict = {"L1": LpLoss(p=1, size_average=False), 
+             "L2": LpLoss(p=2, size_average=False),
+             "L0": L0Loss(size_average=False),
+             "Ratio": RatioLoss(size_average=False)
+}
+loss_vec_dict = {"L1": LpLoss(p=1, size_average=False, reduction=False), 
+             "L2": LpLoss(p=2, size_average=False, reduction=False),
+             "L0": L0Loss(size_average=False, reduction=False),
+             "Ratio": RatioLoss(size_average=False, reduction=False)
+}
 
 t1 = default_timer()
-train_loss = 0.0
-train_other = 0.0
+errors_train = torch.zeros(num_eval_losses)
 out_train = torch.zeros(y_train.shape)
-errors_train = torch.zeros(y_train.shape[0], 2)
+errors_train_vec = torch.zeros(y_train.shape[0], num_eval_losses)
 with torch.no_grad():
     for x, y, idx_train in train_loader:
         x, y = x.to(device), y.to(device)
 
         out = model(x)*mask + ~mask # set model to one outside unit disk of radius 1
 
-        train_loss += loss_f(out, y).item()
-        train_other += loss_ff(out, y).item()
-        
-        errors_train[idx_train,0] = loss_vec(out, y).cpu()
-        errors_train[idx_train,1] = loss_vecf(out, y).cpu()
+        for i, my_str in enumerate(eval_loss_str_list):
+            errors_train[i] += loss_dict[my_str](out, y).item()
+            errors_train_vec[idx_train, i] = loss_vec_dict[my_str](out, y).cpu()
         
         out_train[idx_train,...] = out.squeeze().cpu()
 
-train_loss /= N_train
-train_other /= N_train
+errors_train /= N_train
 t2 = default_timer()
-if FLAG_L1:
-    print(f'Train L1: {train_loss}, Train L2: {train_other}, Time (sec): {t2-t1}')
-else:
-    print(f'Train L2: {train_loss}, Train L1: {train_other}, Time (sec): {t2-t1}')
+combined_dict = dict(zip(eval_loss_str_list, errors_train))
+print(f'Eval Time (sec): {t2-t1}, Train ' + ", ".join(f"{k}: {v:.4f}" for k,v in combined_dict.items()))
 
 t1 = default_timer()
-test_loss = 0.0
-test_other = 0.0
+errors_test = torch.zeros(num_eval_losses)
 out_test = torch.zeros(y_test.shape)
-errors_test = torch.zeros(y_test.shape[0], 2)
+errors_test_vec = torch.zeros(y_test.shape[0], num_eval_losses)
 with torch.no_grad():
     for x, y, idx_test in test_loader:
         x, y = x.to(device), y.to(device)
 
         out = model(x)*mask_test + ~mask_test # set model to one outside unit disk of radius 1
-
-        test_loss += loss_f(out, y).item()
-        test_other += loss_ff(out, y).item()
         
-        errors_test[idx_test,0] = loss_vec(out,y).cpu()
-        errors_test[idx_test,1] = loss_vecf(out,y).cpu()
+        for i, my_str in enumerate(eval_loss_str_list):
+            errors_test[i] += loss_dict[my_str](out, y).item()
+            errors_test_vec[idx_test, i] = loss_vec_dict[my_str](out, y).cpu()
         
         out_test[idx_test,...] = out.squeeze().cpu()
 
-test_loss /= N_test
-test_other /= N_test
+errors_test /= N_test
 t2 = default_timer()
-if FLAG_L1:
-    print(f'Test L1: {test_loss}, Test L2: {test_other}, Time (sec): {t2-t1}')
-else:
-    print(f'Test L2: {test_loss}, Test L1: {test_other}, Time (sec): {t2-t1}')
-    
-# Save final test errors
-torch.save(torch.tensor((test_loss, test_other)), save_path + 'test_errors.pt')
+combined_dict = dict(zip(eval_loss_str_list, errors_test))
+print(f'Eval Time (sec): {t2-t1}, Test ' + ", ".join(f"{k}: {v:.4f}" for k,v in combined_dict.items()))
 
-    
+# Save final test errors
+torch.save(errors_train, save_path + 'errors_train.pt')
+torch.save(errors_test, save_path + 'errors_test.pt')
+
 ################################################################
 #
 # plotting
@@ -361,6 +347,11 @@ torch.save(torch.tensor((test_loss, test_other)), save_path + 'test_errors.pt')
 ################################################################
 plot_folder = save_path + "figures/"
 os.makedirs(plot_folder, exist_ok=True)
+
+handlelength = 3.0     # 2.75
+borderpad = 0.25     # 0.15
+color_list = ['k', 'C3', 'C5', 'C1', 'C2', 'C0', 'C4', 'C6', 'C7', 'C8', 'C9'] # black, red, brown, orange, green, blue, purple, pink, gray, olive, cyan
+
 out_train[:, ~mask.cpu()] = float('nan')
 out_test[:, ~mask_test.cpu()] = float('nan')
 
@@ -370,29 +361,30 @@ with torch.no_grad():
     out3 = out3.squeeze().cpu()
 out3[:, ~mask_test.cpu()] = float('nan')
 
-# %% Errors
-plt.close()
-errors = torch.load(save_path + 'errors.pt', weights_only=True)['errors']
-plt.plot(errors)
-plt.legend(["Train L1" if FLAG_L1 else "Train L2", "Test L1" if FLAG_L1 else "Test L2",\
-            "Train L2" if FLAG_L1 else "Train L1",\
-            "Test L2" if FLAG_L1 else "Test L1"])
+# %% Error vs. epochs plot
+plt.close("all")
+plt.figure(0)
+for i in range(num_eval_losses):
+    plt.plot(errors_train_hist[..., i], ls="-.", color=color_list[i], label="Train " + eval_loss_str_list[i])
+    plt.plot(errors_val_hist[..., i], ls="-", color=color_list[i], label="Val " + eval_loss_str_list[i])
+
+plt.legend(framealpha=0.75, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
+plt.xlabel(r'Epoch')
 plt.tight_layout()
 plt.savefig(plot_folder + "loss_epochs" + ".pdf", format='pdf', bbox_inches='tight')
 
 # %% Worst, median, best case inputs (train)
 plt.close("all")
 
-idx_worst = torch.argmax(errors_train, dim=0)
-idx_median = torch.argsort(errors_train)[errors_train.shape[0]//2, ...]
-idx_best = torch.argmin(errors_train, dim=0)
+idx_worst = torch.argmax(errors_train_vec, dim=0)
+idx_median = torch.argsort(errors_train_vec)[errors_train_vec.shape[0]//2, ...]
+idx_best = torch.argmin(errors_train_vec, dim=0)
 
 idxs = [idx_worst, idx_median, idx_best]
 names = ["worst", "median", "best"]
-losses = ["L1" if FLAG_L1 else "L2", "L2" if FLAG_L1 else "L1"]
 
-for loop in range(2):
-    loss = losses[loop]
+for loop in range(num_eval_losses):
+    loss = eval_loss_str_list[loop]
     for i in range(3):
         idx = idxs[i][loop].item()
         true_trainsort = y_train[idx,...].squeeze()
@@ -425,16 +417,15 @@ for loop in range(2):
 # %% Worst, median, best case inputs (test)
 plt.close("all")
 
-idx_worst = torch.argmax(errors_test, dim=0)
-idx_median = torch.argsort(errors_test)[errors_test.shape[0]//2, ...]
-idx_best = torch.argmin(errors_test, dim=0)
+idx_worst = torch.argmax(errors_test_vec, dim=0)
+idx_median = torch.argsort(errors_test_vec)[errors_test_vec.shape[0]//2, ...]
+idx_best = torch.argmin(errors_test_vec, dim=0)
 
 idxs = [idx_worst, idx_median, idx_best]
 names = ["worst", "median", "best"]
-losses = ["L1" if FLAG_L1 else "L2", "L2" if FLAG_L1 else "L1"]
 
-for loop in range(2):
-    loss = losses[loop]
+for loop in range(num_eval_losses):
+    loss = eval_loss_str_list[loop]
     for i in range(3):
         idx = idxs[i][loop].item()
         true_testsort = y_test[idx,...].squeeze()

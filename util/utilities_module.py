@@ -139,9 +139,9 @@ class RatioLoss(object):
     """
     Convergence in measure distance function with rel/abs loss:
         
-        \int \abs{y-y_true}/(1 + \abs{y-y_true}) dx
+        int \abs{y-y_true}/(1 + \abs{y-y_true}) dx
         
-    NOTE: this is different than the measure of the support of \abs{y-y_true} unless the latter has a uniform lower bound on its support.
+    NOTE: this is different than the measure of the support of \abs{y-y_true} unless the latter has a uniform lower bound on its support, in which case the "norms" are equivalent
     """
     def __init__(self, d=2, size_average=True, reduction=True, eps=1e-8):
         super().__init__()
@@ -152,7 +152,7 @@ class RatioLoss(object):
         self.d = d
         self.reduction = reduction
         self.size_average = size_average
-        self.eps =eps
+        self.eps = eps
 
     def abs(self, x, y):
         num_examples = x.size()[0]
@@ -180,7 +180,7 @@ class RatioLoss(object):
         integrand = integrand / (1.0 + integrand)
         diff_norms = torch.norm(integrand, 1, 1)
         
-        y_norms = y.reshape(num_examples,-1)
+        y_norms = torch.abs(y.reshape(num_examples,-1))
         y_norms = torch.norm((y_norms / (1.0 + y_norms)), 1, 1)
         y_norms += self.eps     # prevent divide by zero
 
@@ -200,9 +200,9 @@ class L0Loss(object):
     """
     "L^0" support measure rel/abs loss:
         
-        \int \one_(\abs{y-y_true} > 0) dx
+        int one_(\abs{y-y_true} > 0) dx
     """
-    def __init__(self, d=2, size_average=True, reduction=True, eps=1e-8):
+    def __init__(self, d=2, size_average=True, reduction=True, eps=1e-8, thresh=1e-6):
         super().__init__()
 
         if not (d > 0):
@@ -211,7 +211,8 @@ class L0Loss(object):
         self.d = d
         self.reduction = reduction
         self.size_average = size_average
-        self.eps =eps
+        self.eps = eps
+        self.thresh = thresh
 
     def abs(self, x, y):
         num_examples = x.size()[0]
@@ -220,7 +221,7 @@ class L0Loss(object):
         h = 1.0 / (x.size()[-1] - 1.0)
         
         integrand = torch.abs(x.view(num_examples,-1) - y.view(num_examples,-1))
-        integrand = (integrand >= self.eps).float()
+        integrand = (integrand >= self.thresh).float()
 
         all_norms = (h**(self.d))*torch.norm(integrand, 1, 1)
 
@@ -236,11 +237,11 @@ class L0Loss(object):
         num_examples = x.size()[0]
         
         integrand = torch.abs(x.view(num_examples,-1) - y.view(num_examples,-1))
-        integrand = (integrand >= self.eps).float()
+        integrand = (integrand >= self.thresh).float()
         diff_norms = torch.norm(integrand, 1, 1)
         
-        y_norms = y.reshape(num_examples,-1)
-        y_norms = torch.norm((y_norms >= self.eps).float(), 1, 1)
+        y_norms = torch.abs(y.reshape(num_examples,-1))
+        y_norms = torch.norm((y_norms >= self.thresh).float(), 1, 1)
         y_norms += self.eps     # prevent divide by zero
 
         if self.reduction:
@@ -269,7 +270,7 @@ class LpLoss(object):
         self.p = p
         self.reduction = reduction
         self.size_average = size_average
-        self.eps =eps
+        self.eps = eps
 
     def abs(self, x, y):
         num_examples = x.size()[0]
