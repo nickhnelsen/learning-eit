@@ -70,6 +70,7 @@ scheduler_name = config['scheduler_name']
 FLAG_reduce = config['FLAG_reduce']
 FLAG_BEST = config['FLAG_BEST']
 FLAG_MEAN_REDUCTION = config['FLAG_MEAN_REDUCTION']
+FLAG_SHUFFLE = config['FLAG_SHUFFLE']
 train_loss_str = config['train_loss_str']
 eval_loss_str_list = config['eval_loss_str_list']
 
@@ -123,15 +124,27 @@ mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out_
 mask_test = mask.to(device)
 mask = mask_test[::sub_out_ratio,::sub_out_ratio].to(device)
 
-# TODO: fix same test data for all experiments; then do random index selection for train
+# Fix same test data for all experiments
 x_test = x_train[-(N_val + N_test):,...]
 x_val = x_test[:N_val,...]
 x_test = x_test[-N_test:,...]
-x_train = x_train[:N_train,...]
+x_train = x_train[:-(N_val + N_test),...]
 
 y_test = y_train[-(N_val + N_test):,...]
 y_val = y_test[:N_val,::sub_out_ratio,::sub_out_ratio]
 y_test = y_test[-N_test:,...]
+y_train = y_train[:-(N_val + N_test),...]
+
+# Shuffle training set selection
+if FLAG_SHUFFLE:
+    dataset_shuffle_idx = torch.randperm(x_train.shape[0])
+    x_train = x_train[dataset_shuffle_idx,...]
+    y_train = y_train[dataset_shuffle_idx,...]
+else:
+    dataset_shuffle_idx = torch.arange(x_train.shape[0])
+    
+torch.save(dataset_shuffle_idx, save_path + 'idx_shuffle.pt')
+x_train = x_train[:N_train,...]
 y_train = y_train[:N_train,::sub_out_ratio,::sub_out_ratio]
 
 x_normalizer = UnitGaussianNormalizer(x_train)
@@ -260,7 +273,7 @@ for ep in tqdm(range(epochs)):
 if FLAG_save_model:
     torch.save(model.state_dict(), save_path + 'model_last.pt')
     torch.save(best_state, save_path + 'model_best.pt')
-
+    
 end = default_timer()
 print("Total time for", epochs, "epochs is", (end-start)/3600, "hours.")
 print("Lowest validation error occurs in epoch", lowest_val_ep + 1)

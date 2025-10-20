@@ -1,6 +1,6 @@
 # File I/O
 data_folder: '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR: "debug_config"
+SAVE_STR: "debug_shuffle"
 SAVE_AFTER: 10     # save to disk after this many epochs
 FLAG_save_model: true
 
@@ -36,5 +36,6 @@ scheduler_name: 'CosineAnnealingLR'        # 'CosineAnnealingLR' or 'StepLR'
 FLAG_reduce: false                         # use ReduceLROnPlateau
 FLAG_BEST: true                            # evaluate on best model if true; else eval on last epoch
 FLAG_MEAN_REDUCTION: true                  # more stable to choice of batch size
+FLAG_SHUFFLE: true
 train_loss_str: "L1"
 eval_loss_str_list: ["L1", "L2", "Ratio"]
