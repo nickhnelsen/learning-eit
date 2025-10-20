@@ -1,0 +1,40 @@
+# File I/O
+data_folder: '/media/nnelsen/SharedHDD2TB/datasets/eit/'
+SAVE_STR: "debug_config"
+SAVE_AFTER: 10     # save to disk after this many epochs
+FLAG_save_model: true
+
+# Sample size
+N_val: 100
+N_test: 400
+N_max: 10000
+
+# Resolution subsampling
+sub_in: 4       # input subsample factor (power of two) from s_max_out = 512
+sub_out: 2      # output subsample factor (power of two) from s_max_out = 256
+sub_in_test: 2
+sub_out_test: 1
+
+# FNO
+modes1: 12         # default: 12
+modes2: 12         # default: 12
+width: 48          # default: 48
+width_final: 256   # default: 256
+act: 'relu'        # default: 'relu' for rough outputs, 'gelu' for smooth outputs
+n_layers: 2        # default: 2
+
+# Training, evaluation, and testing
+batch_size: 32
+epochs: 250
+learning_rate: 8.0e-3
+weight_decay: 1.0e-4
+scheduler_step: 50
+scheduler_gamma: 0.5
+scheduler_iters: null
+scheduler_patience: 5
+scheduler_name: 'CosineAnnealingLR'        # 'CosineAnnealingLR' or 'StepLR'
+FLAG_reduce: false                         # use ReduceLROnPlateau
+FLAG_BEST: true                            # evaluate on best model if true; else eval on last epoch
+FLAG_MEAN_REDUCTION: true                  # more stable to choice of batch size
+train_loss_str: "L1"
+eval_loss_str_list: ["L1", "L2", "Ratio"]

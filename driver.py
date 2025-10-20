@@ -1,49 +1,30 @@
-import os, sys 
-
+import os, sys, yaml
 import torch
 from models import FNO2d as my_model
 from util import AdamW as my_optimizer
 from util import plt
-from util.utilities_module import LpLoss, L0Loss, RatioLoss, UnitGaussianNormalizer, count_params, dataset_with_indices
+from util.utilities_module import LpLoss, L0Loss, RatioLoss, UnitGaussianNormalizer, count_params, dataset_with_indices, make_save_path, set_seed
 from torch.utils.data import TensorDataset, DataLoader
 TensorDatasetID = dataset_with_indices(TensorDataset)
 import copy
-
 from tqdm import tqdm
 from timeit import default_timer
-from datetime import datetime
-
-
-################################################################
-#
-# initialize
-#
-################################################################
-# Output directory
-def make_save_path(save_str, pth = "/"):
-    save_path = "results/" + datetime.today().strftime('%Y-%m-%d') + pth + save_str +"/"
-    return save_path
-
-def set_seed(seed):
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
 
 torch.set_printoptions(precision=16)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("Device is", device)
 
-
 ################################################################
 #
 # user configuration
-#TODO: move all to config file, then save config to save_path
 #
 ################################################################
-# TODO: add args for noise level and seed/MC index
+# Config
+CONFIG_PATH = "config.yaml"
+with open(CONFIG_PATH, "r") as f:
+    config = yaml.safe_load(f)
+
+# Driver arguments
 print(sys.argv)
 N_train = int(sys.argv[1])
 noise = int(sys.argv[2])  # TODO: 0 for zero 1 for X percent noise; todo sample noise
@@ -52,48 +33,53 @@ if seed is not None:
     set_seed(seed)
 
 # File I/O
-data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR = "debug_eval_losses"
-SAVE_AFTER = 10     # save to disk after this many epochs
-FLAG_save_model = True
+data_folder = config['data_folder']
+SAVE_STR = config['SAVE_STR']
+SAVE_AFTER = config['SAVE_AFTER']
+FLAG_save_model = config['FLAG_save_model']
 
 # Sample size
-N_val = 100
-N_test = 400
-assert N_train + N_val + N_test <= 10000    # N_train_max = 10000
+N_val = config['N_val']
+N_test = config['N_test']
+N_max = config['N_max']
 
 # Resolution subsampling
-sub_in = 2**2       # input subsample factor (power of two) from s_max_out = 512
-sub_out = 2**1      # output subsample factor (power of two) from s_max_out = 256
-sub_in_test = 2**1
-sub_out_test = 2**0
-assert sub_in_test <= sub_in and sub_out_test <= sub_out
+sub_in = config['sub_in']
+sub_out = config['sub_out']
+sub_in_test = config['sub_in_test']
+sub_out_test = config['sub_out_test']
 
 # FNO
-modes1 = 12         # default: 12
-modes2 = 12         # default: 12
-width = 48          # default: 48
-width_final = 256   # default: 256
-act = 'relu'        # default: 'relu' for rough outputs, 'gelu' for smooth outputs
-n_layers = 2        # default: 2
+modes1 = config['modes1']
+modes2 = config['modes2']
+width = config['width']
+width_final = config['width_final']
+act = config['act']
+n_layers = config['n_layers']
 
 # Training, evaluation, and testing
-batch_size = 32
-epochs = 250
-learning_rate = 8e-3
-weight_decay = 1e-4
-scheduler_step = 50
-scheduler_gamma = 0.5
-scheduler_iters = epochs
-scheduler_patience = 5
-scheduler_name = 'CosineAnnealingLR'        # 'CosineAnnealingLR' or 'StepLR'
-FLAG_reduce = False                         # use ReduceLROnPlateau
-FLAG_BEST = True                            # evaluate on best model if true; else eval on last epoch
-FLAG_MEAN_REDUCTION = True                  # more stable to choice of batch size
-train_loss_str = "L1"
-eval_loss_str_list = ["L1", "L2", "Ratio"]
+batch_size = config['batch_size']
+epochs = config['epochs']
+learning_rate = config['learning_rate']
+weight_decay = config['weight_decay']
+scheduler_step = config['scheduler_step']
+scheduler_gamma = config['scheduler_gamma']
+scheduler_iters = config['scheduler_iters']
+scheduler_patience = config['scheduler_patience']
+scheduler_name = config['scheduler_name']
+FLAG_reduce = config['FLAG_reduce']
+FLAG_BEST = config['FLAG_BEST']
+FLAG_MEAN_REDUCTION = config['FLAG_MEAN_REDUCTION']
+train_loss_str = config['train_loss_str']
+eval_loss_str_list = config['eval_loss_str_list']
 
-# Check losses
+# Checks
+assert N_train + N_val + N_test <= N_max    # N_train_max = 10000
+assert sub_in_test <= sub_in and sub_out_test <= sub_out
+
+if scheduler_iters is None:
+    scheduler_iters = epochs
+    
 valid_losses = {"L1", "L2", "L0", "Ratio"}
 if train_loss_str not in valid_losses:
     raise ValueError(f"Invalid value for train_loss_str: {train_loss_str}. Must be one of {sorted(valid_losses)}.")
@@ -112,6 +98,16 @@ if train_loss_str != eval_loss_str_list[0]:
 SAVE_STR = SAVE_STR + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + str(seed)
 save_path = make_save_path(SAVE_STR)
 os.makedirs(save_path, exist_ok=True)
+
+with open(save_path + "config.yaml", "w") as f:
+    yaml.safe_dump(
+        config,
+        f,
+        sort_keys=False,            # keep key order
+        default_flow_style=False,   # block style (human-readable)
+        allow_unicode=True,
+        indent=2
+    )
 
 start = default_timer()
 

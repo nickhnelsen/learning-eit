@@ -8,12 +8,28 @@ from functools import reduce
 import numpy as np
 import scipy.io
 import hdf5storage
+from datetime import datetime
 
 #################################################
 #
 # utilities
 #
 #################################################   
+
+# Output directory
+def make_save_path(save_str, pth = "/"):
+    save_path = "results/" + datetime.today().strftime('%Y-%m-%d') + pth + save_str +"/"
+    return save_path
+
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
 
 def to_torch(x, to_float=True):
     """
