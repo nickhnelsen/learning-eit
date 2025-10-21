@@ -21,15 +21,15 @@ print("Device is", device)
 #
 ################################################################
 # Config
-CONFIG_PATH = "config.yaml"
+CONFIG_PATH = "config.yaml"     # hard coded path
 with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
 
 # Driver arguments
 print(sys.argv)
 N_train = int(sys.argv[1])
-noise = int(sys.argv[2])    # "noise" percent noise; integer only for simplicity
-seed = int(sys.argv[3])     # seed and Monte Carlo index for loops
+noise = int(sys.argv[2])        # "noise" percent noise; integer only for simplicity
+seed = int(sys.argv[3])         # seed and Monte Carlo index for loops
 if seed is not None:
     set_seed(seed)
 
@@ -77,7 +77,7 @@ eval_loss_str_list = config['eval_loss_str_list']
 noise_distribution = config['noise_distribution']
 
 # Checks
-assert N_train + N_val + N_test <= N_max    # N_train_max = 10000
+assert N_train + N_val + N_test <= N_max
 assert sub_in_test <= sub_in and sub_out_test <= sub_out
 
 if scheduler_iters is None:

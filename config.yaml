@@ -1,6 +1,6 @@
 # File I/O
 data_folder: '/media/nnelsen/SharedHDD2TB/datasets/eit/'
-SAVE_STR: "debug_noise_plot"
+SAVE_STR: "paper_sweep"
 SAVE_AFTER: 10     # save to disk after this many epochs
 FLAG_save_model: true
 

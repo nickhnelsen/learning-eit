@@ -5,8 +5,8 @@ set -euo pipefail
 
 # Define parameter arrays
 N_ar=(16 32 64 128 256 512 1024 2048 4096 9500)
-Noise_ar=(0)
-Seed_ar=(0)
+Noise_ar=(0 3 10 30)
+Seed_ar=(0 1 2 3 4)
 
 # Activate conda environment
 source ~/anaconda3/etc/profile.d/conda.sh
