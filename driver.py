@@ -125,15 +125,23 @@ mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out_
 mask_test = mask.to(device)
 mask = mask_test[::sub_out_ratio,::sub_out_ratio].to(device)
 
-# TODO: Get noisy inputs
-if noise > 0.0:
-    rf = RandomField(x_train.shape[-1], distribution=noise_distribution, device=device)
-    x_train_noisy = rf.generate_noise_dataset(x_train.shape[0])
-    x_train_noisy = (noise/100)*(integrate(x_train**2).sqrt()[:,None,None])*x_train_noisy
-    x_train_noisy = x_train + x_train_noisy
-    x_train = x_train_noisy; del x_train_noisy # TODO: temp testing
-
 # Fix same test data for all experiments
+x_test_clean = x_train[-(N_val + N_test):,...]
+x_test_clean = x_test_clean[-N_test:,...]
+x_test3_clean = x_test3[...]
+
+# Get noisy inputs
+def get_noisy(dataset):
+    rf = RandomField(dataset.shape[-1], distribution=noise_distribution, device=device)
+    dataset_noisy = rf.generate_noise_dataset(dataset.shape[0])
+    dataset_noisy = (noise/100)*(integrate(dataset**2).sqrt()[:,None,None])*dataset_noisy
+    dataset_noisy = dataset + dataset_noisy
+    return dataset_noisy
+
+if noise > 0.0:
+    x_train = get_noisy(x_train)
+    x_test3 = get_noisy(x_test3)
+
 x_test = x_train[-(N_val + N_test):,...]
 x_val = x_test[:N_val,...]
 x_test = x_test[-N_test:,...]
@@ -160,15 +168,19 @@ x_normalizer = UnitGaussianNormalizer(x_train)
 x_train = x_normalizer.encode(x_train)[:,::sub_in_ratio,::sub_in_ratio]
 x_val = x_normalizer.encode(x_val)[:,::sub_in_ratio,::sub_in_ratio]
 x_test = x_normalizer.encode(x_test)
+x_test_clean = x_normalizer.encode(x_test_clean)
 x_test3 = x_normalizer.encode(x_test3)
+x_test3_clean = x_normalizer.encode(x_test3_clean)
 
 # Make the singleton channel dimension match the FNO2D model input shape requirement
 x_train = torch.unsqueeze(x_train, 1)
 x_val = torch.unsqueeze(x_val, 1)
 x_test = torch.unsqueeze(x_test, 1)
+x_test_clean = torch.unsqueeze(x_test_clean, 1)
 x_test3 = torch.unsqueeze(x_test3, 1)
+x_test3_clean = torch.unsqueeze(x_test3_clean, 1)
 
-# Data loaders
+# Data loaders for training
 train_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(TensorDataset(x_val, y_val), batch_size=batch_size, shuffle=False)
 
@@ -294,10 +306,13 @@ print("Lowest validation error occurs in epoch", lowest_val_ep + 1)
 ################################################################
 train_loader = DataLoader(TensorDatasetID(x_train, y_train), batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(TensorDatasetID(x_test, y_test), batch_size=batch_size, shuffle=False)
+test_clean_loader = DataLoader(TensorDatasetID(x_test_clean, y_test), batch_size=batch_size, shuffle=False)
 
 if FLAG_BEST:
+    print("Evaluating the best model.")
     model.load_state_dict(best_state)
-
+else:
+    print("Evaluating the final epoch model.")
 model.eval()
 
 # Assumes sum reduction for exact loss calculations
@@ -312,51 +327,40 @@ loss_vec_dict = {"L1": LpLoss(p=1, size_average=False, reduction=False),
              "Ratio": RatioLoss(size_average=False, reduction=False)
 }
 
-t1 = default_timer()
-errors_train = torch.zeros(num_eval_losses)
-out_train = torch.zeros(y_train.shape)
-errors_train_vec = torch.zeros(y_train.shape[0], num_eval_losses)
-with torch.no_grad():
-    for x, y, idx_train in train_loader:
-        x, y = x.to(device), y.to(device)
 
-        out = model(x)*mask + ~mask # set model to one outside unit disk of radius 1
-
-        for i, my_str in enumerate(eval_loss_str_list):
-            errors_train[i] += loss_dict[my_str](out, y).item()
-            errors_train_vec[idx_train, i] = loss_vec_dict[my_str](out, y).cpu()
-        
-        out_train[idx_train,...] = out.squeeze().cpu()
-
-errors_train /= N_train
-t2 = default_timer()
-combined_dict = dict(zip(eval_loss_str_list, errors_train))
-print(f'Eval Time (sec): {t2-t1}, Train ' + ", ".join(f"{k}: {v:.4f}" for k,v in combined_dict.items()))
-
-t1 = default_timer()
-errors_test = torch.zeros(num_eval_losses)
-out_test = torch.zeros(y_test.shape)
-errors_test_vec = torch.zeros(y_test.shape[0], num_eval_losses)
-with torch.no_grad():
-    for x, y, idx_test in test_loader:
-        x, y = x.to(device), y.to(device)
-
-        out = model(x)*mask_test + ~mask_test # set model to one outside unit disk of radius 1
-        
-        for i, my_str in enumerate(eval_loss_str_list):
-            errors_test[i] += loss_dict[my_str](out, y).item()
-            errors_test_vec[idx_test, i] = loss_vec_dict[my_str](out, y).cpu()
-        
-        out_test[idx_test,...] = out.squeeze().cpu()
-
-errors_test /= N_test
-t2 = default_timer()
-combined_dict = dict(zip(eval_loss_str_list, errors_test))
-print(f'Eval Time (sec): {t2-t1}, Test ' + ", ".join(f"{k}: {v:.4f}" for k,v in combined_dict.items()))
+def evaluate_my_loader(loader, y_data, mask, type="Train"):
+    t1 = default_timer()
+    errors = torch.zeros(num_eval_losses)
+    out_array = torch.zeros(y_data.shape)
+    errors_vec = torch.zeros(y_data.shape[0], num_eval_losses)
+    with torch.no_grad():
+        for x, y, idx in loader:
+            x, y = x.to(device), y.to(device)
+    
+            out = model(x)*mask + ~mask # set model to one outside unit disk of radius 1
+    
+            for i, my_str in enumerate(eval_loss_str_list):
+                errors[i] += loss_dict[my_str](out, y).item()
+                errors_vec[idx, i] = loss_vec_dict[my_str](out, y).cpu()
+            
+            out_array[idx,...] = out.squeeze().cpu()
+    
+    errors /= y_data.shape[0]
+    t2 = default_timer()
+    combined_dict = dict(zip(eval_loss_str_list, errors))
+    print(f'Eval Time (sec): {t2-t1}, ' + type + " " + ", ".join(f"{k}: {v:.4f}" for k,v in combined_dict.items()))
+    
+    return errors, out_array, errors_vec
+    
+    
+errors_train, out_train, errors_train_vec = evaluate_my_loader(train_loader, y_train, mask, "Train")
+errors_test, out_test, errors_test_vec = evaluate_my_loader(test_loader, y_test, mask_test, "Test")
+errors_test_clean, out_test_clean, errors_test_clean_vec = evaluate_my_loader(test_clean_loader, y_test, mask_test, "Test (Clean)")
 
 # Save final test errors
 torch.save(errors_train, save_path + 'errors_train.pt')
 torch.save(errors_test, save_path + 'errors_test.pt')
+torch.save(errors_test_clean, save_path + 'errors_test_clean.pt')
 
 ################################################################
 #
@@ -372,12 +376,16 @@ color_list = ['k', 'C3', 'C5', 'C1', 'C2', 'C0', 'C4', 'C6', 'C7', 'C8', 'C9'] #
 
 out_train[:, ~mask.cpu()] = float('nan')
 out_test[:, ~mask_test.cpu()] = float('nan')
+out_test_clean[:, ~mask_test.cpu()] = float('nan')
 
 # Phantom three evaluations
 with torch.no_grad():
     out3 = model(x_test3.to(device))*mask_test + ~mask_test
     out3 = out3.squeeze().cpu()
+    out3_clean = model(x_test3_clean.to(device))*mask_test + ~mask_test
+    out3_clean = out3_clean.squeeze().cpu()
 out3[:, ~mask_test.cpu()] = float('nan')
+out3_clean[:, ~mask_test.cpu()] = float('nan')
 
 # %% Error vs. epochs plot
 plt.close("all")
@@ -391,87 +399,52 @@ plt.xlabel(r'Epoch')
 plt.tight_layout()
 plt.savefig(plot_folder + "loss_epochs" + ".pdf", format='pdf', bbox_inches='tight')
 
-# %% Worst, median, best case inputs (train)
-plt.close("all")
-
-idx_worst = torch.argmax(errors_train_vec, dim=0)
-idx_median = torch.argsort(errors_train_vec)[errors_train_vec.shape[0]//2, ...]
-idx_best = torch.argmin(errors_train_vec, dim=0)
-
-idxs = [idx_worst, idx_median, idx_best]
-names = ["worst", "median", "best"]
-
-for loop in range(num_eval_losses):
-    loss = eval_loss_str_list[loop]
-    for i in range(3):
-        idx = idxs[i][loop].item()
-        true_trainsort = y_train[idx,...].squeeze()
-        true_trainsort[~mask.cpu()] = float('nan')
-        plot_trainsort = out_train[idx,...].squeeze()
-        er_trainsort = torch.abs(plot_trainsort - true_trainsort).squeeze()
+# %% Worst, median, best case inputs
+def quartile_plot(errors_vec, x_data, y_data, mask, out_data, leg="Train", name="train"):
+    plt.close("all")
+    
+    idx_worst = torch.argmax(errors_vec, dim=0)
+    idx_median = torch.argsort(errors_vec)[errors_vec.shape[0]//2, ...]
+    idx_best = torch.argmin(errors_vec, dim=0)
+    
+    idxs = [idx_worst, idx_median, idx_best]
+    names = ["worst", "median", "best"]
+    
+    for loop in range(num_eval_losses):
+        loss = eval_loss_str_list[loop]
+        for i in range(3):
+            idx = idxs[i][loop].item()
+            true_trainsort = y_data[idx,...].squeeze()
+            true_trainsort[~mask.cpu()] = float('nan')
+            plot_trainsort = out_data[idx,...].squeeze()
+            er_trainsort = torch.abs(plot_trainsort - true_trainsort).squeeze()
+            
+            plt.close()
+            plt.figure(3, figsize=(9, 9))
+            plt.subplot(2,2,1)
+            plt.title(leg + ' Output')
+            plt.imshow(plot_trainsort, origin='lower', interpolation='none')
+            plt.box(False)
+            plt.subplot(2,2,2)
+            plt.title(leg + ' Truth')
+            plt.imshow(true_trainsort, origin='lower', interpolation='none')
+            plt.box(False)
+            plt.subplot(2,2,3)
+            plt.title(leg + ' Input')
+            plt.imshow(x_data[idx,...].squeeze(), origin='lower')
+            plt.subplot(2,2,4)
+            plt.title(leg + ' PW Error')
+            plt.imshow(er_trainsort, origin='lower')
+            plt.box(False)
+            plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
+            plt.tight_layout()
         
-        plt.close()
-        plt.figure(3, figsize=(9, 9))
-        plt.subplot(2,2,1)
-        plt.title('Train Output')
-        plt.imshow(plot_trainsort, origin='lower', interpolation='none')
-        plt.box(False)
-        plt.subplot(2,2,2)
-        plt.title('Train Truth')
-        plt.imshow(true_trainsort, origin='lower', interpolation='none')
-        plt.box(False)
-        plt.subplot(2,2,3)
-        plt.title('Train Input')
-        plt.imshow(x_train[idx,...].squeeze(), origin='lower')
-        plt.subplot(2,2,4)
-        plt.title('Train PW Error')
-        plt.imshow(er_trainsort, origin='lower')
-        plt.box(False)
-        plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-        plt.tight_layout()
-    
-        plt.savefig(plot_folder + "eval_train_" + loss + "_" + names[i] + ".png", format='png', dpi=300, bbox_inches='tight')
-    
-# %% Worst, median, best case inputs (test)
-plt.close("all")
+            plt.savefig(plot_folder + "eval_" + name + "_" + loss + "_" + names[i] + ".png", format='png', dpi=300, bbox_inches='tight')
 
-idx_worst = torch.argmax(errors_test_vec, dim=0)
-idx_median = torch.argsort(errors_test_vec)[errors_test_vec.shape[0]//2, ...]
-idx_best = torch.argmin(errors_test_vec, dim=0)
 
-idxs = [idx_worst, idx_median, idx_best]
-names = ["worst", "median", "best"]
-
-for loop in range(num_eval_losses):
-    loss = eval_loss_str_list[loop]
-    for i in range(3):
-        idx = idxs[i][loop].item()
-        true_testsort = y_test[idx,...].squeeze()
-        true_testsort[~mask_test.cpu()] = float('nan')
-        plot_testsort = out_test[idx,...].squeeze()
-        er_testsort = torch.abs(plot_testsort - true_testsort).squeeze()
-        
-        plt.close()
-        plt.figure(3, figsize=(9, 9))
-        plt.subplot(2,2,1)
-        plt.title('Test Output')
-        plt.imshow(plot_testsort, origin='lower', interpolation='none')
-        plt.box(False)
-        plt.subplot(2,2,2)
-        plt.title('Test Truth')
-        plt.imshow(true_testsort, origin='lower', interpolation='none')
-        plt.box(False)
-        plt.subplot(2,2,3)
-        plt.title('Test Input')
-        plt.imshow(x_test[idx,...].squeeze(), origin='lower')
-        plt.subplot(2,2,4)
-        plt.title('Test PW Error')
-        plt.imshow(er_testsort, origin='lower')
-        plt.box(False)
-        plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-        plt.tight_layout()
-    
-        plt.savefig(plot_folder + "eval_test_" + loss + "_" + names[i] + ".png", format='png', dpi=300, bbox_inches='tight')
+quartile_plot(errors_train_vec, x_train, y_train, mask, out_train, leg="Train", name="train")
+quartile_plot(errors_test_vec, x_test, y_test, mask_test, out_test, leg="Test", name="test")
+quartile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, leg="Test", name="test_clean")
         
 # %% Train point
 # =============================================================================
@@ -546,30 +519,34 @@ for loop in range(num_eval_losses):
 # %% Non-random phantoms of varying contrast
 plt.close("all")
 
-for i in range(3):
-    true_test3 = y_test3[i,...].squeeze()
-    true_test3[~mask_test.cpu()] = float('nan')
-    plot_test3 = out3[i,...].squeeze()
-    er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
+def OOD_plot(out, x, name):
+    for i in range(3):
+        true_test3 = y_test3[i,...].squeeze()
+        true_test3[~mask_test.cpu()] = float('nan')
+        plot_test3 = out[i,...].squeeze()
+        er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
+        
+        plt.close()
+        plt.figure(22, figsize=(9, 9))
+        plt.subplot(2,2,1)
+        plt.title('Test Output')
+        plt.imshow(plot_test3, origin='lower', interpolation='none')
+        plt.box(False)
+        plt.subplot(2,2,2)
+        plt.title('Test Truth')
+        plt.imshow(true_test3, origin='lower', interpolation='none')
+        plt.box(False)
+        plt.subplot(2,2,3)
+        plt.title('Test Input')
+        plt.imshow(x[i,...].squeeze(), origin='lower')
+        plt.subplot(2,2,4)
+        plt.title('Test PW Error')
+        plt.imshow(er_test3, origin='lower')
+        plt.box(False)
+        plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
+        plt.tight_layout()
     
-    plt.close()
-    plt.figure(22, figsize=(9, 9))
-    plt.subplot(2,2,1)
-    plt.title('Test Output')
-    plt.imshow(plot_test3, origin='lower', interpolation='none')
-    plt.box(False)
-    plt.subplot(2,2,2)
-    plt.title('Test Truth')
-    plt.imshow(true_test3, origin='lower', interpolation='none')
-    plt.box(False)
-    plt.subplot(2,2,3)
-    plt.title('Test Input')
-    plt.imshow(x_test3[i,...].squeeze(), origin='lower')
-    plt.subplot(2,2,4)
-    plt.title('Test PW Error')
-    plt.imshow(er_test3, origin='lower')
-    plt.box(False)
-    plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-    plt.tight_layout()
+        plt.savefig(plot_folder + name + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
 
-    plt.savefig(plot_folder + "eval_phantom_rhop7_" + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
+OOD_plot(out3, x_test3, "eval_phantom_rhop7_")
+OOD_plot(out3_clean, x_test3_clean, "eval_phantom_rhop7_clean_")
