@@ -16,8 +16,10 @@ from datetime import datetime
 #
 #################################################   
 
-# Output directory
 def make_save_path(save_str, pth = "/"):
+    """
+    Output directory
+    """
     save_path = "results/" + datetime.today().strftime('%Y-%m-%d') + pth + save_str +"/"
     return save_path
 
@@ -29,6 +31,16 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+
+def integrate(U, h=None):
+    """
+    Integrate U (tensor of shape [..., nx, ny]) on [0,1]^2
+    """
+    if h is None:
+        h = [1.0 / U.shape[-2], 1.0 / U.shape[-1]]
+
+    return torch.trapezoid(torch.trapezoid(U, dx=h[-1]), dx=h[-2])
 
 
 def to_torch(x, to_float=True):

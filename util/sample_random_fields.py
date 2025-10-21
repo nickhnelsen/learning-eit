@@ -106,6 +106,16 @@ class RandomField(object):
             return u
         else: # N is odd, drop one sample before returning
             return u[:-1,...] 
+        
+    def generate_noise_dataset(self, N, batch_size=64):
+        """
+        generate noise datasets
+        """
+        my_data = torch.zeros(N, *self.size)
+        for batch_idx in torch.split(torch.arange(N), batch_size):
+            my_data[batch_idx,...] = self.sample(len(batch_idx)).cpu()
+            
+        return my_data
 
     def __call__(self, N):
         return self.sample(N)
@@ -128,3 +138,6 @@ if __name__=='__main__':
         plt.figure(i)
         plt.imshow(sample)
         plt.show()
+        
+    my_data = rf.generate_noise_dataset(10)
+    print(my_data.shape)

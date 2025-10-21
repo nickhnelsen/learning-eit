@@ -3,7 +3,8 @@ import torch
 from models import FNO2d as my_model
 from util import AdamW as my_optimizer
 from util import plt
-from util.utilities_module import LpLoss, L0Loss, RatioLoss, UnitGaussianNormalizer, count_params, dataset_with_indices, make_save_path, set_seed
+from util.sample_random_fields import RandomField
+from util.utilities_module import LpLoss, L0Loss, RatioLoss, UnitGaussianNormalizer, count_params, dataset_with_indices, make_save_path, set_seed, integrate
 from torch.utils.data import TensorDataset, DataLoader
 TensorDatasetID = dataset_with_indices(TensorDataset)
 import copy
@@ -27,8 +28,8 @@ with open(CONFIG_PATH, "r") as f:
 # Driver arguments
 print(sys.argv)
 N_train = int(sys.argv[1])
-noise = int(sys.argv[2])  # TODO: 0 for zero 1 for X percent noise; todo sample noise
-seed = int(sys.argv[3])
+noise = int(sys.argv[2])    # "noise" percent noise; integer only for simplicity
+seed = int(sys.argv[3])     # seed and Monte Carlo index for loops
 if seed is not None:
     set_seed(seed)
 
@@ -73,6 +74,7 @@ FLAG_MEAN_REDUCTION = config['FLAG_MEAN_REDUCTION']
 FLAG_SHUFFLE = config['FLAG_SHUFFLE']
 train_loss_str = config['train_loss_str']
 eval_loss_str_list = config['eval_loss_str_list']
+noise_distribution = config['noise_distribution']
 
 # Checks
 assert N_train + N_val + N_test <= N_max    # N_train_max = 10000
@@ -95,7 +97,6 @@ if train_loss_str != eval_loss_str_list[0]:
 # load and process data
 #
 ################################################################
-# TODO: fix path with user variables (noise value)
 SAVE_STR = SAVE_STR + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + str(seed)
 save_path = make_save_path(SAVE_STR)
 os.makedirs(save_path, exist_ok=True)
@@ -123,6 +124,14 @@ y_train = torch.load(data_folder + 'conductivity.pt', weights_only=True)['conduc
 mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out_test,::sub_out_test]
 mask_test = mask.to(device)
 mask = mask_test[::sub_out_ratio,::sub_out_ratio].to(device)
+
+# TODO: Get noisy inputs
+if noise > 0.0:
+    rf = RandomField(x_train.shape[-1], distribution=noise_distribution, device=device)
+    x_train_noisy = rf.generate_noise_dataset(x_train.shape[0])
+    x_train_noisy = (noise/100)*(integrate(x_train**2).sqrt()[:,None,None])*x_train_noisy
+    x_train_noisy = x_train + x_train_noisy
+    x_train = x_train_noisy; del x_train_noisy # TODO: temp testing
 
 # Fix same test data for all experiments
 x_test = x_train[-(N_val + N_test):,...]
