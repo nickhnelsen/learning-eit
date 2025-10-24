@@ -38,12 +38,22 @@ for (( i=1; i<=N_loop; i++ )); do
     >"$log" 2>&1 &
 
   # Throttle to MAX_JOBS using wait -n (Bash 5.1+)
-  (( ++running >= MAX_JOBS )) && { wait -n || { echo "A job failed; see ${LOGDIR}/*.log. Tailing:"; tail -n 50 ${LOGDIR}/*.log || true; exit 1; }; ((running--)); }
+  (( ++running >= MAX_JOBS )) && {
+    if ! wait -n; then
+      echo "A job failed; see ${LOGDIR}/*.log. Tailing recent lines:"
+      tail -n 30 "$LOGDIR"/*.log || true
+      exit 1
+    fi
+    ((running--))
+  }
 done
 
-# Wait for the rest
+# Drain remaining jobs
 while (( running > 0 )); do
-  wait -n || { echo "A job failed; see ${LOGDIR}/*.log"; exit 1; }
+  if ! wait -n; then
+    echo "A job failed; see ${LOGDIR}/*.log"
+    exit 1
+  fi
   ((running--))
 done
 
