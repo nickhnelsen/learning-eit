@@ -2,9 +2,8 @@
 %       get_cond_data.m, conductivityGRF.m, FEMconductivityGRF.m
 %
 % Script to generate large Fourier basis truth set of ND maps
-% Nicholas H. Nelsen Mar. 2022
+% Nicholas H. Nelsen Oct. 2025
 
-% clc; clear variables; close all;
 function []=data_generation_fND_script(seed,N_cond,N_solves,...
     tau_m,tau_p,al_m,al_p,rho_m,rho_p,cr_m,cr_p)
 
@@ -36,7 +35,7 @@ N_solves = str2num(N_solves);
 seed = str2num(seed);   % (202203);
 
 % NOTE: Dataset path
-SAVE_AFTER = 3;       % after number of OUTER loops
+SAVE_AFTER = 5;       % after number of OUTER loops
 if N_cond <= SAVE_AFTER
     SAVE_AFTER = 1;
 end
@@ -104,7 +103,6 @@ for oo = 1:N_cond
     disp(['(Seed ', num2str(seed), ') Done ', num2str(oo), ' out of ', num2str(N_cond), ' outer loops',...
         ' in ', num2str(toc(s2)/60), ' minutes'])
 end
-% ntd_array = (ntd_array + permute(conj(ntd_array),[1 3 2]))/2;
 save(save_path,'kvec_array','ntd_array','cond_array','tau_cond','alpha_cond','rho',...
     'contrast_ratio','seed','-v7.3','-nocompression')
 disp(['Done (full data generation) ', 'in ', num2str(toc(s1)/3600), ' hours'])
