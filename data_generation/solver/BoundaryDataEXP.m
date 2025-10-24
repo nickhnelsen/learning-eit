@@ -5,11 +5,9 @@
 % for the assempde.m routine of Matlabs PDE toolbox.
 %
 % Arguments:
-% grf   a GRF on the torus
+% wavenum   Fourier index
 % p     triangulation points
 % e     edge data
-% u     not used here
-% time  not used here
 %
 % Returns:
 % q     zeros(1,ne), where ne is the number of edges in e

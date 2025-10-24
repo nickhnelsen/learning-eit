@@ -1,5 +1,5 @@
-% Requires function files: GRFcos.m, GRFper.m, BoundaryDataGRF.m,
-%       get_cond_data.m, conductivityGRF.m, FEMconductivityGRF.m
+% Requires files: GRFcos.m, BoundaryDataEXP.m,
+%       get_cond_data.m, conductivityGRF.m, FEMconductivityGRF.m, mesh.mat
 %
 % Script to generate large Fourier basis truth set of ND maps
 % Nicholas H. Nelsen Oct. 2025
