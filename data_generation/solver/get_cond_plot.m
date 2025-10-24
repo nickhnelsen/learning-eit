@@ -17,6 +17,13 @@ rhop_lnt=0.95;
 rhom_lnt=0.5;
 scale=8;
 
+% Three phase
+tau=15;
+alpha=4.5;
+rho=0.8;
+val1=10;
+val2=0.1;
+
 % Set font size
 fsize = 14;
 
@@ -26,10 +33,11 @@ t       = linspace(-1,1,N);
 z       = x1 + 1i*x2;
 
 % Evaluate conductivity
+[c, ~] = get_cond_data_three_phase(N,tau,alpha,rho,val1,val2);
 % [c, ~] = get_cond_data(N,tau,alpha,rho,contrast_ratio);
 % [c, ~] = get_cond_data_smooth(N,tau,alpha,rho,contrast_ratio,sigma);
 % [c, ~] = get_cond_data_lognormal(N,tau_ln,alpha_ln);
-[c, ~] = get_cond_data_lognormaltrunc(N,tau_lnt,alpha_lnt,rhop_lnt,rhom_lnt,scale);
+% [c, ~] = get_cond_data_lognormaltrunc(N,tau_lnt,alpha_lnt,rhop_lnt,rhom_lnt,scale);
 c(abs(z)>1) = NaN;
 
 % Two-dimensional plot 

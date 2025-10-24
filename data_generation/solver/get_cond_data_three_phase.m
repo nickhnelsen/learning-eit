@@ -10,10 +10,14 @@ function [raw_cond, interp_cond] = get_cond_data_three_phase(N,tau,alpha,rho,val
     % Sample
     g_1 = GRFcos(N, tau, alpha);
     g_2 = GRFcos(N, tau, alpha);
+    
+%     region1 = (g_1 >= 0) & (g_2 < 0);
+%     region2 = (g_1 < 0) & (g_2 >= 0);
+%     region0 = ~(region1 | region2);
 
-    region1 = (g_1 >= 0) & (g_2 < 0);
-    region2 = (g_1 < 0) & (g_2 >= 0);
-    region0 = ~(region1 | region2);
+    region1 = (g_1 >= 0) & (g_2 >= 0);
+    region2 = (g_1 >= 0) & (g_2 < 0);
+    region0 = (g_1 < 0);
     
     raw_cond = zeros(size(g_1));
     raw_cond(region1) = val1;
