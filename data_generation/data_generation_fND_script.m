@@ -48,7 +48,7 @@ save_path = append("./eit_bin_fND_",str0,str1,str2,str3);
 
 % Derived
 rng(seed,'twister');
-load ../solver/data/mesh p e t      % Load mesh (precomputed in mesh_comp.m)
+load ./solver/data/mesh p e t      % Load mesh (precomputed in mesh_comp.m)
 
 % We use the fact that in mesh_comp.m the unit circle was 
 % divided into the following four segments: 
@@ -108,6 +108,6 @@ end
 save(save_path,'kvec_array','ntd_array','cond_array','tau_cond','alpha_cond','rho',...
     'contrast_ratio','seed','-v7.3','-nocompression')
 disp(['Done (full data generation) ', 'in ', num2str(toc(s1)/3600), ' hours'])
-rmpath('../solver/');
+rmpath('./solver/');
 
 end
