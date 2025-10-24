@@ -5,8 +5,8 @@ set -euo pipefail
 
 # ---- parameters ----
 seed=2025          # base seed; actual seed will be "${seed}${i}"
-N_loop=40
-N_cond=250
+N_loop=50
+N_cond=200
 N_solves=256
 tau_m=12
 tau_p=18
