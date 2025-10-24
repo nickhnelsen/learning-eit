@@ -5,8 +5,8 @@ set -euo pipefail
 
 # ---- parameters ----
 seed=2025          # base seed; actual seed will be "${seed}${i}"
-N_loop=12
-N_cond=2
+N_loop=40
+N_cond=250
 N_solves=256
 tau_m=12
 tau_p=18
@@ -19,8 +19,7 @@ val1_p=10
 val2_m=0.1
 val2_p=0.5
 
-# Concurrency: use 8 physical cores
-MAX_JOBS=8
+MAX_JOBS=12
 
 LOGDIR="logs_three_phase"
 mkdir -p "$LOGDIR"
