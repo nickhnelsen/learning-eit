@@ -65,6 +65,7 @@ plot_folder_base = "./results/" + exp_date + "/" + load_prefix
 
 # Legend
 legs = [r"$0\%$", r"$3\%$", r"$10\%$", r"$30\%$"]
+legs_alt = ["Noisy Test", "Clean Test"]
 
 # Colors
 color_list = ['k', 'C3', 'C5', 'C1', 'C2', 'C0', 'C4', 'C6', 'C7', 'C8', 'C9'] # black, red, brown, orange, green, blue, purple, pink, gray, olive, cyan
@@ -150,6 +151,40 @@ def make_data_sweep_plot(my_errors, fig_num=0, my_str="noisy"):
 make_data_sweep_plot(plot_errors[...,0,:], 0, "noisy")
 make_data_sweep_plot(plot_errors[...,1,:], 1, "clean")
 
+
+# Plot: Err vs Sample size, varying clean/noisy test for fixed noise
+def make_data_sweep_plot_fixed_noise(my_errors, noise_idx, noise_val):
+    """
+    my_errors: (N_train, CleanOrNot, MeanOrStdev) array
+    """
+    
+    plt.figure(noise_idx)
+    
+    for i in range(2):
+        x = my_errors[:,i,0]
+        twosigma = n_std*my_errors[:,i,1]
+        lb = np.maximum(x - twosigma, plot_tol)
+        ub = x + twosigma
+    
+        plt.loglog(N_list, x, ls=style_list[i], color=color_list[i], marker=marker_list[i], markersize=msz, label=legs_alt[i])
+        plt.fill_between(N_list, lb, ub, facecolor=color_list[i], alpha=0.125)
+    
+    plt.xlim(left=9e0)
+    plt.ylim(top=1e0)
+    plt.xlabel(r'Sample Size')
+    plt.ylabel(r'Average Relative $L^1$ Test Error')
+    plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
+    plt.grid(True, which="both")
+    plt.tight_layout()
+    if FLAG_save_plots:
+        if FLAG_WIDE:
+            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_wide_noise' + str(noise_val) + '.pdf', format='pdf')
+        else:
+            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_noise' + str(noise_val) + '.pdf', format='pdf')
+    plt.show()
+
+for i in range(len(Noise_list)):
+    make_data_sweep_plot_fixed_noise(plot_errors[:, i, ... ], i, Noise_list[i])
 
 # %% L^p loss plots for different p is not interesting
 # # Plot: Err vs Sample size vs Loss
