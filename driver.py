@@ -1,5 +1,6 @@
 import os, sys, yaml
 import torch
+import numpy as np
 from models import FNO2d as my_model
 from util import AdamW as my_optimizer
 from util import plt
@@ -419,15 +420,21 @@ def quartile_plot(errors_vec, x_data, y_data, mask, out_data, leg="Train", name=
             plot_trainsort = out_data[idx,...].squeeze()
             er_trainsort = torch.abs(plot_trainsort - true_trainsort).squeeze()
             
+            true_trainsort = true_trainsort.detach().cpu().numpy()
+            vmin = float(np.nanmin(true_trainsort))
+            vmax = float(np.nanmax(true_trainsort))
+            if not (vmax > vmin):
+                vmin, vmax = vmin - 1e-12, vmax + 1e-12
+
             plt.close()
             plt.figure(3, figsize=(9, 9))
             plt.subplot(2,2,1)
             plt.title(leg + ' Output')
-            plt.imshow(plot_trainsort, origin='lower', interpolation='none')
+            plt.imshow(plot_trainsort, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
             plt.box(False)
             plt.subplot(2,2,2)
             plt.title(leg + ' Truth')
-            plt.imshow(true_trainsort, origin='lower', interpolation='none')
+            plt.imshow(true_trainsort, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
             plt.box(False)
             plt.subplot(2,2,3)
             plt.title(leg + ' Input')
@@ -526,15 +533,21 @@ def OOD_plot(out, x, name):
         plot_test3 = out[i,...].squeeze()
         er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
         
+        true_test3 = true_test3.detach().cpu().numpy()
+        vmin = float(np.nanmin(true_test3))
+        vmax = float(np.nanmax(true_test3))
+        if not (vmax > vmin):
+            vmin, vmax = vmin - 1e-12, vmax + 1e-12
+
         plt.close()
         plt.figure(22, figsize=(9, 9))
         plt.subplot(2,2,1)
         plt.title('Test Output')
-        plt.imshow(plot_test3, origin='lower', interpolation='none')
+        plt.imshow(plot_test3, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
         plt.box(False)
         plt.subplot(2,2,2)
         plt.title('Test Truth')
-        plt.imshow(true_test3, origin='lower', interpolation='none')
+        plt.imshow(true_test3, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
         plt.box(False)
         plt.subplot(2,2,3)
         plt.title('Test Input')
