@@ -101,7 +101,7 @@ SAVE_STR = SAVE_STR + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + st
 save_path = make_save_path(SAVE_STR)
 os.makedirs(save_path, exist_ok=True)
 
-with open(save_path + "config.yaml", "w") as f:
+with open(save_path + CONFIG_PATH, "w") as f:
     yaml.safe_dump(
         config,
         f,

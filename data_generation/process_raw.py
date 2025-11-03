@@ -16,7 +16,7 @@ def get_kernel_from_ntd(x):
     return x
 
 
-data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/three_phase/'
+data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/three_phase_raw/'
 N_loop = 50
 FLAG_SAVE = not True
 
