@@ -162,22 +162,6 @@ def projector2d(x, s=None):
     return x
 
 
-def process_raw_ntd(ntd, s):
-    """
-    Adds missing zero Fourier modes to the raw data
-    Truncates or zero pads the highest frequencies in last two axes
-    Removes negative frequencies in the -2 axis
-    Args
-        ntd:    (n, c, N1 - 1, N2 - 1) tensor in fft2 format WITHOUT 0 wavenumbers
-        s:      (2) tuple, s=(s_1, s_2) desired ifft2 output dimension (s_i >=1)
-    Output
-        out:    (n, c, s1//2 + 1, s_2) tensor
-    """
-    ntd = F.pad(ntd, [1, 0, 1, 0])
-    ntd = resize_fft2(ntd, s)
-    ntd = ntd[..., :(ntd.shape[-2] + 1)//2 + 1, :]
-    return ntd
-
 ################################################################
 #
 # 2d Fourier layers
