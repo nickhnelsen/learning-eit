@@ -91,6 +91,7 @@ for i, N in enumerate(N_list):
 plot_errors = get_stats(plot_errors[..., 0]) # L^1 loss only!
 # Noise_list[0] = plot_tol # avoid zero on log scale
 Noise_list.pop(0)
+noise_plot = np.asarray(Noise_list) / 100.0
 plot_errors=plot_errors[1:,...]
 
 # # Experimental rates of convergence table
@@ -133,12 +134,12 @@ def make_noise_sweep_plot(my_errors, fig_num=0, my_str="noisy"):
         lb = np.maximum(x - twosigma, plot_tol)
         ub = x + twosigma
     
-        plt.loglog(Noise_list, x, ls=style_list[i], color=color_list[i], marker=marker_list[i], markersize=msz, label=legs[i])
-        plt.fill_between(Noise_list, lb, ub, facecolor=color_list[i], alpha=0.125)
+        plt.semilogy(noise_plot, x, ls=style_list[i], color=color_list[i], marker=marker_list[i], markersize=msz, label=legs[i])
+        plt.fill_between(noise_plot, lb, ub, facecolor=color_list[i], alpha=0.125)
     
     # plt.xlim(left=9e0)
     # plt.ylim(top=1e0)
-    plt.xlabel(r'Noise Level (Percent)')
+    plt.xlabel(r'Noise Level')
     plt.ylabel(r'Average Relative $L^1$ Test Error')
     plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
     plt.grid(True, which="both")
