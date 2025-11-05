@@ -59,8 +59,8 @@ num_losses = 3
 N_list = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 9500]
 Noise_list = [0, 3, 10, 30]
 Seed_list = [0, 1, 2, 3, 4]
-exp_date = "2025-10-23"
-load_prefix = "paper_sweep"
+exp_date = "2025-11-05"
+load_prefix = "paper_sweep_three_phase"
 plot_folder_base = "./results/" + exp_date + "/" + load_prefix
 
 
@@ -98,7 +98,7 @@ for i in range(len(eocBoch)):
     eocBoch[i,...] = np.log2(plot_errors[i,...,0]/plot_errors[i + 1,...,0])/np.log2(N_list[i + 1]/N_list[i])
 print("\nEOC is: ")
 print(eocBoch)
-np.save("./results/" + exp_date + "/" + "rate_table_L1_data_sweep.npy", eocBoch)
+np.save("./results/" + exp_date + "/" + "rate_table_L1_data_sweep_three_phase.npy", eocBoch)
 
 
 # Least square fit to error data
@@ -111,7 +111,7 @@ def get_slopes(array_2d, my_str="noisy", nplot=nplot, nplota=nplota, exp_date=ex
     my_slopes = -linefit[-1]
     print("Least square slope fit is (" + my_str + "): ")
     print(my_slopes)
-    np.save("./results/" + exp_date + "/" + 'rate_ls_data_sweep_' + my_str + '.npy', linefit)
+    np.save("./results/" + exp_date + "/" + 'rate_ls_data_sweep_three_phase_' + my_str + '.npy', linefit)
     return my_slopes, linefit, lineplota
 
 my_noisy_slopes = get_slopes(plot_errors[...,0,0], "noisy")
@@ -136,7 +136,6 @@ def make_data_sweep_plot(my_errors, fig_num=0, my_str="noisy"):
         plt.fill_between(N_list, lb, ub, facecolor=color_list[i], alpha=0.125)
     
     plt.xlim(left=9e0)
-    plt.ylim(top=1e0)
     plt.xlabel(r'Sample Size')
     plt.ylabel(r'Average Relative $L^1$ Test Error')
     plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
@@ -144,9 +143,9 @@ def make_data_sweep_plot(my_errors, fig_num=0, my_str="noisy"):
     plt.tight_layout()
     if FLAG_save_plots:
         if FLAG_WIDE:
-            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_wide_' + my_str + '.pdf', format='pdf')
+            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_wide_three_phase_' + my_str + '.pdf', format='pdf')
         else:
-            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_' + my_str + '.pdf', format='pdf')
+            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_three_phase_' + my_str + '.pdf', format='pdf')
     plt.show()
 
 make_data_sweep_plot(plot_errors[...,0,:], 0, "noisy")
@@ -171,7 +170,6 @@ def make_data_sweep_plot_fixed_noise(my_errors, noise_idx, noise_val):
         plt.fill_between(N_list, lb, ub, facecolor=color_list[i], alpha=0.125)
     
     plt.xlim(left=9e0)
-    plt.ylim(top=1e0)
     plt.xlabel(r'Sample Size')
     plt.ylabel(r'Average Relative $L^1$ Test Error')
     plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
@@ -179,9 +177,9 @@ def make_data_sweep_plot_fixed_noise(my_errors, noise_idx, noise_val):
     plt.tight_layout()
     if FLAG_save_plots:
         if FLAG_WIDE:
-            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_wide_noise' + str(noise_val) + '.pdf', format='pdf')
+            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_wide_noise_three_phase' + str(noise_val) + '.pdf', format='pdf')
         else:
-            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_noise' + str(noise_val) + '.pdf', format='pdf')
+            plt.savefig("./results/" + exp_date + "/" + 'data_sweep_noise_three_phase' + str(noise_val) + '.pdf', format='pdf')
     plt.show()
 
 for i in range(len(Noise_list)):
@@ -230,7 +228,6 @@ def make_noise_fit_power(my_errors, x, d, model, fig_num=0, my_str="noisy"):
         plt.fill_between(x, lb, ub, facecolor=color_list[i], alpha=0.125)
     
     plt.xlim(left=9e0)
-    plt.ylim(7e-2, 8e-1)
     plt.xlabel(r'$N$')
     plt.ylabel(r'$\mathrm{Err}_{\delta,N} - \mathrm{Err}_{\delta,\infty}$')
     plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
@@ -238,9 +235,9 @@ def make_noise_fit_power(my_errors, x, d, model, fig_num=0, my_str="noisy"):
     plt.tight_layout()
     if FLAG_save_plots:
         if FLAG_WIDE:
-            plt.savefig("./results/" + exp_date + "/" + 'data_power_wide_' + my_str + '.pdf', format='pdf')
+            plt.savefig("./results/" + exp_date + "/" + 'data_power_wide_three_phase_' + my_str + '.pdf', format='pdf')
         else:
-            plt.savefig("./results/" + exp_date + "/" + 'data_power_' + my_str + '.pdf', format='pdf')
+            plt.savefig("./results/" + exp_date + "/" + 'data_power_three_phase_' + my_str + '.pdf', format='pdf')
     plt.show()
     
 make_noise_fit_power(plot_errors[...,0,:], nvec, param_power, model_power, 10, "noisy")
