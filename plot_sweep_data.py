@@ -3,6 +3,7 @@ import numpy as np
 from util import plt
 
 from numpy.polynomial.polynomial import polyfit
+from scipy.optimize import curve_fit
 
 
 plt.close("all")
@@ -186,34 +187,60 @@ def make_data_sweep_plot_fixed_noise(my_errors, noise_idx, noise_val):
 for i in range(len(Noise_list)):
     make_data_sweep_plot_fixed_noise(plot_errors[:, i, ... ], i, Noise_list[i])
 
-# %% L^p loss plots for different p is not interesting
-# # Plot: Err vs Sample size vs Loss
-# my_plot = plot_errors[:, 1, 0, :,:]
-# plt.figure(0)
 
-# # round_slopes = np.round(my_slopes, 2)
-# # plt.loglog(N_list, 0.9*2**lineplota[...,0], ls='--', color='darkgray', label=fr'$N^{{-{round_slopes[0]:.2f}}}$')
-# # plt.loglog(N_list, 1.07*2**lineplota[...,1], ls='-', color='darkgray', label=fr'$N^{{-{round_slopes[1]:.2f}}}$')
+# Plot: Shifted Err vs Sample size on log-log, varying noise level
+nvec = np.asarray(nplota)
+def model_power(n, E0, c, rho):
+    """
+    Model: offset power law E = E0 + c * N**-rho
+    """
+    return E0 + c * np.power(n, -rho)
 
-# plt.loglog(N_list, 1.7*np.asarray(N_list)**(-0.3), ls='-', color='darkgray')
+def fit_power(n, err):
+    """Initial guesses: E0≈min(err), rho≈1, c based on first step"""
+    p0 = (float(err.min()), float((err.max()-err.min())/(n.max()**1 if n.max()>0 else 1)), 1.0)
+    bounds = (0.0, [np.inf, np.inf, 3.0])  # rho capped to something reasonable
+    E0, c, rho = curve_fit(model_power, n, err, p0=p0, bounds=bounds, maxfev=10000)[0]
+    return dict(E0=E0, c=c, rho=rho)
 
-# for i in range(num_losses):
-#     twosigma = n_std*my_plot[...,i,1]
-#     lb = np.maximum(my_plot[...,i,0] - twosigma, plot_tol)
-#     ub = my_plot[...,i,0] + twosigma
+param_power = [fit_power(nvec, plot_errors[:, j, 0, 0]) for j in range(plot_errors.shape[1])]
+param_power_clean = [fit_power(nvec, plot_errors[:, j, 1, 0]) for j in range(plot_errors.shape[1])]
 
-#     plt.loglog(N_list, my_plot[...,i,0], ls=style_list[i], color=color_list[i], marker=marker_list[i], markersize=msz, label=legs[i])
-#     plt.fill_between(N_list, lb, ub, facecolor=color_list[i], alpha=0.125)
+for d, fp in zip([param_power,param_power_clean],
+                 ["Power Noisy","Power Clean"]):
+    print(fp)
+    for i, fit in enumerate(d, start=1):
+        print(f"Curve {i}: E0 = {fit['E0']:.4f}, c = {fit['c']:.4f}, rho = {fit['rho']:.3f}")
 
-# plt.xlim(left=9e0)
-# plt.xlabel(r'Sample Size')
-# plt.ylabel(r'Average Relative $L^p$ Test Error')
-# plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
-# plt.grid(True, which="both")
-# plt.tight_layout()
-# if FLAG_save_plots:
-#     if FLAG_WIDE:
-#         plt.savefig("./results/" + exp_date + "/" + 'samplesize_wide' + '.pdf', format='pdf')
-#     else:
-#         plt.savefig("./results/" + exp_date + "/" + 'samplesize' + '.pdf', format='pdf')
-# plt.show()
+
+def make_noise_fit_power(my_errors, x, d, model, fig_num=0, my_str="noisy"):
+    """
+    my_errors: (N_train, Noise, MeanOrStdev) array
+    """
+    plt.figure(fig_num)
+    for i in range(len(Noise_list)):
+        plt.loglog(x, model(x, **d[i]) - d[i]['E0'], ls='-', color='purple')
+
+        y = my_errors[:,i,0] - d[i]['E0']
+        twosigma = n_std*my_errors[:,i,1]
+        lb = np.maximum(y - twosigma, plot_tol)
+        ub = y + twosigma
+    
+        plt.loglog(x, y, ls=style_list[i], color=color_list[i], marker=marker_list[i], markersize=msz, label=legs[i])
+        plt.fill_between(x, lb, ub, facecolor=color_list[i], alpha=0.125)
+    
+    plt.ylim(7e-2, 8e-1)
+    plt.xlabel(r'$N$')
+    plt.ylabel(r'$\mathrm{Err}_{\delta,N} - \mathrm{Err}_{\delta,\infty}$')
+    plt.legend(framealpha=1, loc='best', borderpad=borderpad,handlelength=handlelength).set_draggable(True)
+    plt.grid(True, which="both")
+    plt.tight_layout()
+    if FLAG_save_plots:
+        if FLAG_WIDE:
+            plt.savefig("./results/" + exp_date + "/" + 'data_power_wide_' + my_str + '.pdf', format='pdf')
+        else:
+            plt.savefig("./results/" + exp_date + "/" + 'data_power_' + my_str + '.pdf', format='pdf')
+    plt.show()
+    
+make_noise_fit_power(plot_errors[...,0,:], nvec, param_power, model_power, 10, "noisy")
+make_noise_fit_power(plot_errors[...,1,:], nvec, param_power_clean, model_power, 11, "clean")
