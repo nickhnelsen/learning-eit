@@ -16,14 +16,14 @@ def get_kernel_from_ntd(x):
     return x
 
 
-data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/three_phase_raw/'
-N_loop = 50
+data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/lognormal_raw/'
+N_loop = 40
 FLAG_SAVE = not True
 
 conductivity = []
 kernel = []
 for i in range(N_loop):
-    datapath = data_folder + "eit_bin_fND_three_phase_S2025" + str(i + 1) + "_No200_Ni256_Ro256.mat"
+    datapath = data_folder + "eit_bin_fND_lognormal_S2025" + str(i + 1) + "_No250_Ni256_Ro256.mat"
     x = MatReader(datapath, variable_names=['cond_array','ntd_array'])
     conductivity.append(x.read_field('cond_array'))
     kernel.append(get_kernel_from_ntd(x.read_field('ntd_array')))
@@ -32,8 +32,8 @@ conductivity = torch.cat(conductivity, dim=0)
 kernel = torch.cat(kernel, dim=0)
 
 if FLAG_SAVE:
-    torch.save({'conductivity': conductivity}, data_folder + 'conductivity_three_phase.pt')
-    torch.save({'kernel': kernel}, data_folder + 'kernel_three_phase.pt')
+    torch.save({'conductivity': conductivity}, data_folder + 'conductivity.pt')
+    torch.save({'kernel': kernel}, data_folder + 'kernel.pt')
 
 
 
