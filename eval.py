@@ -23,14 +23,14 @@ exp_date = "2025-10-23"
 load_prefix = "paper_sweep"
 N_train = 9500
 noise = 0
-seed = 1
+seed = 2
 
 # New eval choices
 subfolder = "figures_eval/"
 eval_loss_str_list = ["L1", "L0Clip", "DICE"]
-noise_new = 1
+noise_new = 5
 noise_distribution_new = "uniform"
-FLAG_BEST = True
+FLAG_BEST = not     True
 prefix_new = noise_distribution_new + str(noise_new) + "_Best" + str(int(FLAG_BEST)) + "_"
 
 # Get path
@@ -310,6 +310,8 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     idx_rand = torch.randint(N_test, [len(idx_best)])
 
     idxs = [idx_worst, idx_median, idx_best, idx_rand]
+    for ii, iii in enumerate(idxs):
+        print(names[ii] + ":", errors_vec[iii, torch.tensor([0, 1, 2])])
 
     for loop in range(num_eval_losses):
         true_fields = []
