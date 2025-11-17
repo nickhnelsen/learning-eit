@@ -286,7 +286,7 @@ class L0Loss(object):
 
 class L0LossClip(object):
     """
-    "L^0" support measure rel/abs loss of clipped images:
+    "L^0" support measure rel/abs loss of clipped images on [-1,1]^2:
         
         int one_(clip(y) neq clip(y_true)) dx,
     
@@ -310,8 +310,8 @@ class L0LossClip(object):
     def abs(self, x, y):
         num_examples = x.size()[0]
 
-        #Assume uniform mesh
-        h = 1.0 / (x.size()[-1] - 1.0)
+        #Assume uniform mesh on [-1,1]
+        h = 2.0 / (x.size()[-1] - 1.0)
         
         integrand = (self.clip(x).view(num_examples,-1) != self.clip(y).view(num_examples,-1)).float()
         all_norms = (h**(self.d))*torch.norm(integrand, 1, 1)
@@ -325,6 +325,9 @@ class L0LossClip(object):
         return all_norms
 
     def rel(self, x, y):
+        """
+        Not too meaningful, can be larger than 1 since L^0 is not a norm
+        """
         num_examples = x.size()[0]
         
         y = self.clip(y).view(num_examples,-1)
@@ -343,12 +346,12 @@ class L0LossClip(object):
         return diff_norms/y_norms
 
     def __call__(self, x, y):
-        return self.rel(x, y)
+        return self.abs(x, y)
     
     
 class DICE(object):
     """
-    DICE score of two images.
+    1 minus DICE score of two images.
         
         2 sum (clip(x) & clip(y)) / (sum(clip(x)) + sum(clip(y)) + eps)
     
@@ -379,7 +382,7 @@ class DICE(object):
         denom = x.sum(dim=-1).float()
         denom += y.sum(dim=-1).float()
         
-        dice = 2 * dice / (denom + self.eps)
+        dice = 1.0 - 2 * dice / (denom + self.eps)
 
         if self.reduction:
             if self.size_average:
