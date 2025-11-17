@@ -254,6 +254,7 @@ plt.rcParams['font.size'] = 18
 plt.rc('legend', fontsize=15)
 plt.rcParams['lines.linewidth'] = 3.5
 msz = 14
+fz = 14
 handlelength = 3.0     # 2.75
 borderpad = 0.25     # 0.15
 
@@ -296,57 +297,198 @@ with torch.no_grad():
 out3[:, ~mask_test.cpu()] = float('nan')
 out3_clean[:, ~mask_test.cpu()] = float('nan')
 
-# %% Worst, median, best case inputs
-def quartile_plot(errors_vec, x_data, y_data, mask, out_data, leg="Train", name="train"):
-    plt.close("all")
+# %% Tile plot
+
+def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
+    names = ['Worst', 'Median', 'Best', 'Random']  # column titles
+    K = len(names)
     
-    idx_worst = torch.argmax(errors_vec, dim=0)
-    idx_median = torch.argsort(errors_vec)[errors_vec.shape[0]//2, ...]
-    idx_best = torch.argmin(errors_vec, dim=0)
-    
-    idxs = [idx_worst, idx_median, idx_best]
-    names = ["worst", "median", "best"]
-    
+    # indices: worst, median, best, random
+    idx_worst  = torch.argmax(errors_vec, dim=0)
+    idx_median = torch.argsort(errors_vec)[errors_vec.shape[0] // 2, ...]
+    idx_best   = torch.argmin(errors_vec, dim=0)
+    idx_rand = torch.randint(N_test, [len(idx_best)])
+
+    idxs = [idx_worst, idx_median, idx_best, idx_rand]
+
     for loop in range(num_eval_losses):
-        loss = eval_loss_str_list[loop]
-        for i in range(3):
-            idx = idxs[i][loop].item()
-            true_trainsort = y_data[idx,...].squeeze()
-            true_trainsort[~mask.cpu()] = float('nan')
-            plot_trainsort = out_data[idx,...].squeeze()
-            er_trainsort = torch.abs(plot_trainsort - true_trainsort).squeeze()
-            
-            true_trainsort = true_trainsort.detach().cpu().numpy()
-            vmin = float(np.nanmin(true_trainsort))
-            vmax = float(np.nanmax(true_trainsort))
-            if not (vmax > vmin):
-                vmin, vmax = vmin - 1e-12, vmax + 1e-12
-
-            plt.close()
-            plt.figure(3, figsize=(9, 9))
-            plt.subplot(2,2,1)
-            plt.title(leg + ' Output')
-            plt.imshow(plot_trainsort, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
-            plt.box(False)
-            plt.subplot(2,2,2)
-            plt.title(leg + ' Truth')
-            plt.imshow(true_trainsort, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
-            plt.box(False)
-            plt.subplot(2,2,3)
-            plt.title(leg + ' Input')
-            plt.imshow(x_data[idx,...].squeeze(), origin='lower')
-            plt.subplot(2,2,4)
-            plt.title(leg + ' PW Error')
-            plt.imshow(er_trainsort, origin='lower')
-            plt.box(False)
-            plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-            plt.tight_layout()
+        true_fields = []
+        pred_fields = []
+        err_fields  = []
+        input_fields = []   
         
-            plt.savefig(plot_folder + prefix_new + "eval_" + name + "_" + loss + "_" + names[i] + ".png", format='png', dpi=300, bbox_inches='tight')
+        loss = eval_loss_str_list[loop]
+        for m, name in enumerate(names):
+            idx = idxs[m][loop].item()
+            
+            input_trainsort = x_data[idx, ...].squeeze().clone()
+        
+            # true (masked)
+            true_trainsort = y_data[idx, ...].squeeze().clone()
+            true_trainsort[~mask.cpu()] = float('nan')
+        
+            # prediction
+            plot_trainsort = out_data[idx, ...].squeeze().clone()
+        
+            # error
+            er_trainsort = torch.abs(plot_trainsort - true_trainsort).squeeze()
+        
+            # convert to numpy
+            input_np = input_trainsort.detach().cpu().numpy()
+            true_np  = true_trainsort.detach().cpu().numpy()
+            pred_np  = plot_trainsort.detach().cpu().numpy()
+            err_np   = er_trainsort.detach().cpu().numpy()
+        
+            input_fields.append(input_np)
+            true_fields.append(true_np)
+            pred_fields.append(pred_np)
+            err_fields.append(err_np)
+        
+        # ------------------------------------------------------------------
+        # Global color limits
+        # ------------------------------------------------------------------
+        all_stress = np.stack(true_fields + pred_fields, axis=0)
+        vmin_stress = float(np.nanmin(all_stress))
+        vmax_stress = float(np.nanmax(all_stress))
+        if not (vmax_stress > vmin_stress):
+            vmin_stress, vmax_stress = vmin_stress - 1e-12, vmax_stress + 1e-12
+            
+        all_inputs = np.stack(input_fields, axis=0)
+        vmin_input = float(np.nanmin(all_inputs))
+        vmax_input = float(np.nanmax(all_inputs))
+        if not (vmax_input > vmin_input):
+            vmin_input, vmax_input = vmin_input - 1e-12, vmax_input + 1e-12
+        
+        all_err = np.stack(err_fields, axis=0)
+        vmin_err = float(np.nanmin(all_err))
+        vmax_err = float(np.nanmax(all_err))
+        if not (vmax_err > vmin_err):
+            vmin_err, vmax_err = vmin_err - 1e-12, vmax_err + 1e-12
+        
+        # ------------------------------------------------------------------
+        # Create 4 x K grid: rows = {input, true, pred, error}
+        # ------------------------------------------------------------------
+        fig, axes = plt.subplots(
+            4, K, figsize=(10, 8),
+            sharex=False, sharey=False,
+            constrained_layout=False
+        )
+        axes = np.atleast_2d(axes)
+    
+        # references for colorbars (use last column’s images)
+        im_input_ref = im_true_ref = im_err_ref = None
+        
+        # ------------------------------------------------------------------
+        # Fill the grid
+        # ------------------------------------------------------------------
+        for j, name in enumerate(names):
+            ax_input = axes[0, j]
+            ax_true  = axes[1, j]
+            ax_pred  = axes[2, j]
+            ax_err   = axes[3, j]
+            
+            ax_input.set_title(name, fontsize=fz, pad=4)
+    
+            # First row: NtD kernel (inferno)
+            im_input = ax_input.imshow(
+                input_fields[j], origin='lower',
+                vmin=vmin_input, vmax=vmax_input, 
+                # cmap='inferno'
+            )
+    
+            # True / predicted conductivity (default viridis)
+            im_true = ax_true.imshow(
+                true_fields[j], origin='lower',
+                interpolation='none',
+                vmin=vmin_stress, vmax=vmax_stress
+            )
+            ax_true.set_frame_on(False)
+    
+            im_pred = ax_pred.imshow(
+                pred_fields[j], origin='lower',
+                interpolation='none',
+                vmin=vmin_stress, vmax=vmax_stress
+            )
+            ax_pred.set_frame_on(False)
+    
+            im_err = ax_err.imshow(
+                err_fields[j], origin='lower',
+                vmin=vmin_err, vmax=vmax_err,
+                # cmap='cividis'
+            )
+            ax_err.set_frame_on(False)
+    
+            # Remove ticks
+            for ax in (ax_input, ax_true, ax_pred, ax_err):
+                ax.set_xticks([])
+                ax.set_yticks([])
+    
+            # Row labels on the leftmost column (vertical)
+            if j == 0:
+                ax_input.set_ylabel('NtD kernel', rotation=90,
+                                    ha='center', va='center', labelpad=10, fontsize=fz)
+                ax_true.set_ylabel('True conductivity', rotation=90,
+                                   ha='center', va='center', labelpad=10, fontsize=fz)
+                ax_pred.set_ylabel('Predicted conductivity', rotation=90,
+                                   ha='center', va='center', labelpad=10, fontsize=fz)
+                ax_err.set_ylabel('Pointwise error', rotation=90,
+                                  ha='center', va='center', labelpad=10, fontsize=fz)
+    
+            # Save references from last column for colorbars
+            if j == K - 1:
+                im_input_ref = im_input
+                im_true_ref  = im_true
+                im_err_ref   = im_err
+    
+        # Reserve some space on the right for the colorbars
+        fig.tight_layout(rect=[0.0, 0.0, 0.86, 1.0])
+        
+        # 1) NtD kernel colorbar (first row, inferno)
+        cin_axes = axes[0, :].ravel()
+        cbar_in = fig.colorbar(
+            im_input_ref,                 # keep a ref to im_input from the last column
+            ax=cin_axes,
+            location='right',             # matplotlib >= 3.3
+            fraction=0.03,
+            pad=0.02
+        )
+        cbar_in.ax.tick_params(labelsize=fz)
+        
+        # 2) Conductivity colorbar (rows 2–3)
+        stress_axes = axes[1:3, :].ravel()
+        cbar_stress = fig.colorbar(
+            im_true_ref,                  # ref to true conductivity imshow
+            ax=stress_axes,
+            location='right',
+            fraction=0.03,
+            pad=0.02
+        )
+        # --- conductivity (row 3) ---
+        cond_ticks = [1, 20, 40, 60, 80, 100]   # adjust to your range
+        cbar_stress.set_ticks(cond_ticks)
+        cbar_stress.set_ticklabels([str(t) for t in cond_ticks])
+        cbar_stress.ax.tick_params(labelsize=fz)
+    
+        # 3) Error colorbar (last row, cividis)
+        err_axes = axes[3, :].ravel()
+        cbar_err = fig.colorbar(
+            im_err_ref,
+            ax=err_axes,
+            location='right',
+            fraction=0.03,
+            pad=0.02
+        )
+        cond_ticks = [0, 25, 50, 75, 100]   # adjust to your range
+        cbar_err.set_ticks(cond_ticks)
+        cbar_err.set_ticklabels([str(t) for t in cond_ticks])
+        cbar_err.ax.tick_params(labelsize=fz)
+        
+        # IMPORTANT: do NOT call plt.tight_layout() again after this
+        # plt.show()
+        plt.savefig(plot_folder + prefix_new + loss + "_" + plotname + ".png", format='png', dpi=300, bbox_inches='tight')
 
-
-quartile_plot(errors_test_vec, x_test, y_test, mask_test, out_test, leg="Test", name="test")
-quartile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, leg="Test", name="test_clean")
+tile_plot(errors_test_vec, x_test, y_test, mask_test, out_test, plotname="test")
+tile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, plotname="test_clean")
 
 # %% Non-random phantoms of varying contrast
 plt.close("all")
