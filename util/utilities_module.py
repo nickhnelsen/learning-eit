@@ -284,6 +284,115 @@ class L0Loss(object):
         return self.rel(x, y)
 
 
+class L0LossClip(object):
+    """
+    "L^0" support measure rel/abs loss of clipped images:
+        
+        int one_(clip(y) neq clip(y_true)) dx,
+    
+    where clip(y) = 1 if y> 50 (inclusion) and = 0 if y<50 (background)
+    """
+    def __init__(self, d=2, size_average=True, reduction=True, eps=1e-8, thresh=50.0):
+        super().__init__()
+
+        if not (d > 0):
+            raise ValueError("Dimension d must be postive.")
+
+        self.d = d
+        self.reduction = reduction
+        self.size_average = size_average
+        self.eps = eps
+        self.thresh = thresh
+        
+    def clip(self, x):
+        return (x > self.thresh)
+
+    def abs(self, x, y):
+        num_examples = x.size()[0]
+
+        #Assume uniform mesh
+        h = 1.0 / (x.size()[-1] - 1.0)
+        
+        integrand = (self.clip(x).view(num_examples,-1) != self.clip(y).view(num_examples,-1)).float()
+        all_norms = (h**(self.d))*torch.norm(integrand, 1, 1)
+
+        if self.reduction:
+            if self.size_average:
+                return torch.mean(all_norms)
+            else:
+                return torch.sum(all_norms)
+
+        return all_norms
+
+    def rel(self, x, y):
+        num_examples = x.size()[0]
+        
+        y = self.clip(y).view(num_examples,-1)
+        integrand = (self.clip(x).view(num_examples,-1) != y).float()
+        diff_norms = torch.norm(integrand, 1, 1)
+        
+        y_norms = torch.norm(y.float(), 1, 1)
+        y_norms += self.eps     # prevent divide by zero
+
+        if self.reduction:
+            if self.size_average:
+                return torch.mean(diff_norms/y_norms)
+            else:
+                return torch.sum(diff_norms/y_norms)
+
+        return diff_norms/y_norms
+
+    def __call__(self, x, y):
+        return self.rel(x, y)
+    
+    
+class DICE(object):
+    """
+    DICE score of two images.
+        
+        2 sum (clip(x) & clip(y)) / (sum(clip(x)) + sum(clip(y)) + eps)
+    
+    where clip(y) = 1 if y> 50 (inclusion) and = 0 if y<50 (background)
+    """
+    def __init__(self, d=2, size_average=True, reduction=True, eps=1e-8, thresh=50.0):
+        super().__init__()
+
+        if not (d > 0):
+            raise ValueError("Dimension d must be postive.")
+
+        self.d = d
+        self.reduction = reduction
+        self.size_average = size_average
+        self.eps = eps
+        self.thresh = thresh
+        
+    def clip(self, x):
+        return (x > self.thresh)
+
+    def score(self, x, y):
+        num_examples = x.size()[0]
+        
+        x = self.clip(x).view(num_examples,-1)
+        y = self.clip(y).view(num_examples,-1)
+        
+        dice = (x & y).sum(dim=-1).float()
+        denom = x.sum(dim=-1).float()
+        denom += y.sum(dim=-1).float()
+        
+        dice = 2 * dice / (denom + self.eps)
+
+        if self.reduction:
+            if self.size_average:
+                return torch.mean(dice)
+            else:
+                return torch.sum(dice)
+
+        return dice
+
+    def __call__(self, x, y):
+        return self.score(x, y)
+
+
 class LpLoss(object):
     """
     loss function with rel/abs Lp norm loss
