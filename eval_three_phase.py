@@ -22,7 +22,7 @@ print("Device is", device)
 exp_date = "2025-11-05"
 load_prefix = "paper_sweep_three_phase"
 N_train = 9500
-noise = 3
+noise = 10
 seed = 0
 
 # New eval choices
@@ -99,7 +99,6 @@ start = default_timer()
 
 x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)['kernel_3heart'][...,::sub_in_test,::sub_in_test]
 y_test3 = torch.load(data_folder + 'conductivity_3heart_rhop7.pt', weights_only=True)['conductivity_3heart'][...,::sub_out_test,::sub_out_test]
-y_test3 = torch.flip(y_test3, [-2])
 
 sub_in_ratio = sub_in//sub_in_test
 sub_out_ratio = sub_out//sub_out_test
@@ -495,8 +494,9 @@ if PLOT_CLEAN:
     tile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, plotname="test_clean")
 
 
-# Non-random phantoms of varying contrast
+# %% Non-random phantoms of varying contrast
 plt.close("all")
+plt.rcParams['font.size'] = 11
 
 def OOD_plot(out, x, name):
     for i in range(3):
@@ -504,35 +504,65 @@ def OOD_plot(out, x, name):
         true_test3[~mask_test.cpu()] = float('nan')
         plot_test3 = out[i,...].squeeze()
         er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
-        
         true_test3 = true_test3.detach().cpu().numpy()
+        
         vmin = float(np.nanmin(true_test3))
         vmax = float(np.nanmax(true_test3))
         if not (vmax > vmin):
             vmin, vmax = vmin - 1e-12, vmax + 1e-12
-
-        plt.close()
-        plt.figure(22, figsize=(9, 9))
-        plt.subplot(2,2,1)
-        plt.title('Test Output')
-        plt.imshow(plot_test3, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
-        plt.box(False)
-        plt.subplot(2,2,2)
-        plt.title('Test Truth')
-        plt.imshow(true_test3, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
-        plt.box(False)
-        plt.subplot(2,2,3)
-        plt.title('Test Input')
-        plt.imshow(x[i,...].squeeze(), origin='lower')
-        plt.subplot(2,2,4)
-        plt.title('Test PW Error')
-        plt.imshow(er_test3, origin='lower')
-        plt.box(False)
-        plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-        plt.tight_layout()
-    
+        vmin = max(0.0, vmin)
+        
+        plt.close(100)
+        fig, axs = plt.subplots(1, 4, num=100, figsize=(8, 2))
+        
+        fz = 10  # or whatever you had
+        
+        # --- 1: Noisy NtD kernel ---
+        ax = axs[0]
+        ax.set_title('Noisy NtD kernel', fontsize=fz)
+        ax.imshow(x[i, ...].squeeze(), origin='lower')
+        
+        # --- 2: True conductivity ---
+        ax = axs[1]
+        ax.set_title('True conductivity', fontsize=fz)
+        ax.imshow(true_test3, interpolation='none', vmin=vmin, vmax=vmax)
+        ax.set_frame_on(False)
+        
+        # --- 3: Predicted conductivity ---
+        ax = axs[2]
+        ax.set_title('Predicted conductivity', fontsize=fz)
+        ax.imshow(plot_test3, interpolation='none', vmin=vmin, vmax=vmax)
+        ax.set_frame_on(False)
+        
+        # --- 4: Pointwise error ---
+        ax = axs[3]
+        ax.set_title('Pointwise error', fontsize=fz)
+        im = ax.imshow(er_test3, cmap='inferno')
+        ax.set_frame_on(False)
+        
+        # Remove ticks from all subplots
+        for ax in axs:
+            ax.set_xticks([])
+            ax.set_yticks([])
+        
+        # First tighten the layout but leave room on the right for the colorbar
+        fig.tight_layout(rect=[0.0, 0.0, 0.86, 1.0])
+        
+        # One colorbar for the last image, aligned with all 4 axes
+        cbar = fig.colorbar(
+            im,
+            ax=axs,              # <-- THIS is the key: attach to all 4
+            location='right',
+            fraction=0.028,
+            pad=0.02
+        )
+        cond_ticks = [0, 1, 2, 3, 4,5]   # adjust to your range
+        cbar.set_ticks(cond_ticks)
+        cbar.set_ticklabels([str(t) for t in cond_ticks])
+        cbar.ax.tick_params(labelsize=fz)
+            
         plt.savefig(plot_folder + prefix_new + name + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
 
-OOD_plot(out3, x_test3, "eval_phantom_rhop7_")
+OOD_plot(out3, x_test3, "heartNlungs_")
 if PLOT_CLEAN:
-    OOD_plot(out3_clean, x_test3_clean, "eval_phantom_rhop7_clean_")
+    OOD_plot(out3_clean, x_test3_clean, "heartNlungs_clean_")
