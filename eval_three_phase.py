@@ -19,19 +19,19 @@ print("Device is", device)
 #
 ################################################################
 # Load training results
-exp_date = "2025-10-23"
-load_prefix = "paper_sweep"
+exp_date = "2025-11-05"
+load_prefix = "paper_sweep_three_phase"
 N_train = 9500
 noise = 3
-seed = 0
+seed = 1
 
 # New eval choices
 subfolder = "figures_eval/"
-eval_loss_str_list = ["L1", "L0Clip", "DICE"]
+eval_loss_str_list = ["L1"]
 noise_new = 1
 noise_distribution_new = "uniform"
 FLAG_BEST = True
-PLOT_CLEAN = False
+PLOT_CLEAN = True
 FLAG_LOCAL = True
 
 # Get path
@@ -50,7 +50,7 @@ if seed is not None:
 
 # File I/O
 if FLAG_LOCAL:
-    data_folder = "/home/nnelsen/data/eit/shape_detection/"
+    data_folder = "/home/nnelsen/data/eit/three_phase/"
 else:
     data_folder = config['data_folder']
 
@@ -311,9 +311,9 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     K = len(names)
     
     # indices: worst, median, best, random
-    idx_worst  = torch.argmax(errors_vec, dim=0)
+    idx_worst  = torch.argsort(errors_vec, dim=0)[-1, ...]
     idx_median = torch.argsort(errors_vec, dim=0)[errors_vec.shape[0] // 2, ...]
-    idx_best   = torch.argmin(errors_vec, dim=0)
+    idx_best   = torch.argsort(errors_vec, dim=0)[0, ...]
     idx_rand = torch.randint(N_test, [len(idx_best)])
 
     idxs = [idx_worst, idx_median, idx_best, idx_rand]
@@ -356,19 +356,21 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
         # ------------------------------------------------------------------
         # Global color limits
         # ------------------------------------------------------------------
-        all_stress = np.stack(true_fields + pred_fields, axis=0)
+        # all_stress = np.stack(true_fields + pred_fields, axis=0)
+        all_stress = np.stack(true_fields[1:], axis=0)
         vmin_stress = float(np.nanmin(all_stress))
         vmax_stress = float(np.nanmax(all_stress))
         if not (vmax_stress > vmin_stress):
             vmin_stress, vmax_stress = vmin_stress - 1e-12, vmax_stress + 1e-12
+        vmin_stress = max(0.0, vmin_stress)
             
-        all_inputs = np.stack(input_fields, axis=0)
+        all_inputs = np.stack(input_fields[1:], axis=0)
         vmin_input = float(np.nanmin(all_inputs))
         vmax_input = float(np.nanmax(all_inputs))
         if not (vmax_input > vmin_input):
             vmin_input, vmax_input = vmin_input - 1e-12, vmax_input + 1e-12
         
-        all_err = np.stack(err_fields, axis=0)
+        all_err = np.stack(err_fields[1:], axis=0)
         vmin_err = float(np.nanmin(all_err))
         vmax_err = float(np.nanmax(all_err))
         if not (vmax_err > vmin_err):
@@ -404,7 +406,7 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
                 vmin=vmin_input, vmax=vmax_input
             )
     
-            # True / predicted conductivity
+            # True / predicted conductivity (default viridis)
             im_true = ax_true.imshow(
                 true_fields[j], origin='lower',
                 interpolation='none',
@@ -421,7 +423,8 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     
             im_err = ax_err.imshow(
                 err_fields[j], origin='lower',
-                vmin=vmin_err, vmax=vmax_err
+                vmin=vmin_err, vmax=vmax_err,
+                cmap='inferno'
             )
             ax_err.set_frame_on(False)
     
@@ -450,7 +453,7 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
         # Reserve some space on the right for the colorbars
         fig.tight_layout(rect=[0.0, 0.0, 0.86, 1.0])
         
-        # 1) NtD kernel colorbar
+        # 1) NtD kernel colorbar (first row, inferno)
         cin_axes = axes[0, :].ravel()
         cbar_in = fig.colorbar(
             im_input_ref,                 # keep a ref to im_input from the last column
@@ -471,12 +474,9 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
             pad=0.02
         )
         # --- conductivity (row 3) ---
-        cond_ticks = [1, 20, 40, 60, 80, 100]   # adjust to your range
-        cbar_stress.set_ticks(cond_ticks)
-        cbar_stress.set_ticklabels([str(t) for t in cond_ticks])
         cbar_stress.ax.tick_params(labelsize=fz)
     
-        # 3) Error colorbar
+        # 3) Error colorbar (last row, cividis)
         err_axes = axes[3, :].ravel()
         cbar_err = fig.colorbar(
             im_err_ref,
@@ -485,9 +485,6 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
             fraction=0.03,
             pad=0.02
         )
-        cond_ticks = [0, 25, 50, 75, 100]   # adjust to your range
-        cbar_err.set_ticks(cond_ticks)
-        cbar_err.set_ticklabels([str(t) for t in cond_ticks])
         cbar_err.ax.tick_params(labelsize=fz)
         
         # IMPORTANT: do NOT call plt.tight_layout() again after this

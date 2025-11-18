@@ -19,19 +19,19 @@ print("Device is", device)
 #
 ################################################################
 # Load training results
-exp_date = "2025-10-23"
-load_prefix = "paper_sweep"
+exp_date = "2025-11-10"
+load_prefix = "paper_sweep_lognormal"
 N_train = 9500
 noise = 3
 seed = 0
 
 # New eval choices
 subfolder = "figures_eval/"
-eval_loss_str_list = ["L1", "L0Clip", "DICE"]
+eval_loss_str_list = ["L1"]
 noise_new = 1
 noise_distribution_new = "uniform"
 FLAG_BEST = True
-PLOT_CLEAN = False
+PLOT_CLEAN = True
 FLAG_LOCAL = True
 
 # Get path
@@ -50,7 +50,7 @@ if seed is not None:
 
 # File I/O
 if FLAG_LOCAL:
-    data_folder = "/home/nnelsen/data/eit/shape_detection/"
+    data_folder = "/home/nnelsen/data/eit/lognormal/"
 else:
     data_folder = config['data_folder']
 
@@ -305,6 +305,9 @@ with torch.no_grad():
 out3[:, ~mask_test.cpu()] = float('nan')
 out3_clean[:, ~mask_test.cpu()] = float('nan')
 
+
+from matplotlib.colors import LogNorm
+
 # Tile plot
 def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     names = ['Worst', 'Median', 'Best', 'Random']  # column titles
@@ -356,23 +359,22 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
         # ------------------------------------------------------------------
         # Global color limits
         # ------------------------------------------------------------------
-        all_stress = np.stack(true_fields + pred_fields, axis=0)
+        all_stress = np.stack(true_fields[1:] + pred_fields[1:], axis=0)
         vmin_stress = float(np.nanmin(all_stress))
         vmax_stress = float(np.nanmax(all_stress))
         if not (vmax_stress > vmin_stress):
             vmin_stress, vmax_stress = vmin_stress - 1e-12, vmax_stress + 1e-12
             
-        all_inputs = np.stack(input_fields, axis=0)
+        all_inputs = np.stack(input_fields[1:], axis=0)
         vmin_input = float(np.nanmin(all_inputs))
         vmax_input = float(np.nanmax(all_inputs))
         if not (vmax_input > vmin_input):
             vmin_input, vmax_input = vmin_input - 1e-12, vmax_input + 1e-12
         
-        all_err = np.stack(err_fields, axis=0)
-        vmin_err = float(np.nanmin(all_err))
-        vmax_err = float(np.nanmax(all_err))
-        if not (vmax_err > vmin_err):
-            vmin_err, vmax_err = vmin_err - 1e-12, vmax_err + 1e-12
+        all_err = np.stack(err_fields, axis=0)           
+        err_positive = all_err[all_err > 0]
+        vmin_err = float(np.nanmax([err_positive.min(), 1e-4]))
+        vmax_err = float(err_positive.max())  # adjust upper bound as desired
         
         # ------------------------------------------------------------------
         # Create 4 x K grid: rows = {input, true, pred, error}
@@ -401,10 +403,10 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
             # First row: NtD kernel
             im_input = ax_input.imshow(
                 input_fields[j], origin='lower',
-                vmin=vmin_input, vmax=vmax_input
+                vmin=vmin_input, vmax=vmax_input, 
             )
     
-            # True / predicted conductivity
+            # True / predicted conductivity (default viridis)
             im_true = ax_true.imshow(
                 true_fields[j], origin='lower',
                 interpolation='none',
@@ -421,7 +423,8 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     
             im_err = ax_err.imshow(
                 err_fields[j], origin='lower',
-                vmin=vmin_err, vmax=vmax_err
+                norm=LogNorm(vmin=vmin_err, vmax=vmax_err),
+                cmap='inferno'
             )
             ax_err.set_frame_on(False)
     
@@ -450,7 +453,7 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
         # Reserve some space on the right for the colorbars
         fig.tight_layout(rect=[0.0, 0.0, 0.86, 1.0])
         
-        # 1) NtD kernel colorbar
+        # 1) NtD kernel colorbar (first row, inferno)
         cin_axes = axes[0, :].ravel()
         cbar_in = fig.colorbar(
             im_input_ref,                 # keep a ref to im_input from the last column
@@ -471,12 +474,9 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
             pad=0.02
         )
         # --- conductivity (row 3) ---
-        cond_ticks = [1, 20, 40, 60, 80, 100]   # adjust to your range
-        cbar_stress.set_ticks(cond_ticks)
-        cbar_stress.set_ticklabels([str(t) for t in cond_ticks])
         cbar_stress.ax.tick_params(labelsize=fz)
     
-        # 3) Error colorbar
+        # 3) Error colorbar (last row, cividis)
         err_axes = axes[3, :].ravel()
         cbar_err = fig.colorbar(
             im_err_ref,
@@ -485,9 +485,6 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
             fraction=0.03,
             pad=0.02
         )
-        cond_ticks = [0, 25, 50, 75, 100]   # adjust to your range
-        cbar_err.set_ticks(cond_ticks)
-        cbar_err.set_ticklabels([str(t) for t in cond_ticks])
         cbar_err.ax.tick_params(labelsize=fz)
         
         # IMPORTANT: do NOT call plt.tight_layout() again after this
@@ -496,46 +493,3 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
 tile_plot(errors_test_vec, x_test, y_test, mask_test, out_test, plotname="test")
 if PLOT_CLEAN:
     tile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, plotname="test_clean")
-
-
-# Non-random phantoms of varying contrast
-plt.close("all")
-
-def OOD_plot(out, x, name):
-    for i in range(3):
-        true_test3 = y_test3[i,...].squeeze()
-        true_test3[~mask_test.cpu()] = float('nan')
-        plot_test3 = out[i,...].squeeze()
-        er_test3 = torch.abs(plot_test3 - true_test3).squeeze()
-        
-        true_test3 = true_test3.detach().cpu().numpy()
-        vmin = float(np.nanmin(true_test3))
-        vmax = float(np.nanmax(true_test3))
-        if not (vmax > vmin):
-            vmin, vmax = vmin - 1e-12, vmax + 1e-12
-
-        plt.close()
-        plt.figure(22, figsize=(9, 9))
-        plt.subplot(2,2,1)
-        plt.title('Test Output')
-        plt.imshow(plot_test3, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
-        plt.box(False)
-        plt.subplot(2,2,2)
-        plt.title('Test Truth')
-        plt.imshow(true_test3, origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
-        plt.box(False)
-        plt.subplot(2,2,3)
-        plt.title('Test Input')
-        plt.imshow(x[i,...].squeeze(), origin='lower')
-        plt.subplot(2,2,4)
-        plt.title('Test PW Error')
-        plt.imshow(er_test3, origin='lower')
-        plt.box(False)
-        plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-        plt.tight_layout()
-    
-        plt.savefig(plot_folder + prefix_new + name + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
-
-OOD_plot(out3, x_test3, "eval_phantom_rhop7_")
-if PLOT_CLEAN:
-    OOD_plot(out3_clean, x_test3_clean, "eval_phantom_rhop7_clean_")
