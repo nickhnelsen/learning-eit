@@ -8,7 +8,6 @@
 % Last updated: Jan. 2022
 
 function [raw_cond, interp_cond] = get_cond_data(N,tau,alpha,rho,contrast_ratio)
-    % TODO: can later include multiple level sets instead of just one
     g_plus = contrast_ratio;	
     g_minus = 1;
 
