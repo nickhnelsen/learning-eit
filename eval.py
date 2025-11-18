@@ -30,8 +30,9 @@ subfolder = "figures_eval/"
 eval_loss_str_list = ["L1", "L0Clip", "DICE"]
 noise_new = 5
 noise_distribution_new = "uniform"
-FLAG_BEST = not     True
+FLAG_BEST = not True
 prefix_new = noise_distribution_new + str(noise_new) + "_Best" + str(int(FLAG_BEST)) + "_"
+PLOT_CLEAN = False
 
 # Get path
 plot_folder_base = "./results/" + exp_date + "/" + load_prefix
@@ -238,6 +239,8 @@ errors_test_clean, out_test_clean, errors_test_clean_vec = evaluate_my_loader(te
 # Save final test errors
 torch.save(errors_test, save_path_new + prefix_new + 'errors_test.pt')
 torch.save(errors_test_clean, save_path_new + prefix_new + 'errors_test_clean.pt')
+torch.save(errors_test_vec, save_path_new + prefix_new + 'errors_test_vec.pt')
+torch.save(errors_test_clean_vec, save_path_new + prefix_new + 'errors_test_clean_vec.pt')
 
 ################################################################
 #
@@ -297,8 +300,7 @@ with torch.no_grad():
 out3[:, ~mask_test.cpu()] = float('nan')
 out3_clean[:, ~mask_test.cpu()] = float('nan')
 
-# %% Tile plot
-
+# Tile plot
 def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     names = ['Worst', 'Median', 'Best', 'Random']  # column titles
     K = len(names)
@@ -406,7 +408,7 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
             )
             ax_true.set_frame_on(False)
     
-            im_pred = ax_pred.imshow(
+            _ = ax_pred.imshow(
                 pred_fields[j], origin='lower',
                 interpolation='none',
                 vmin=vmin_stress, vmax=vmax_stress
@@ -427,7 +429,7 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
     
             # Row labels on the leftmost column (vertical)
             if j == 0:
-                ax_input.set_ylabel('NtD kernel', rotation=90,
+                ax_input.set_ylabel('Noisy NtD kernel', rotation=90,
                                     ha='center', va='center', labelpad=10, fontsize=fz)
                 ax_true.set_ylabel('True conductivity', rotation=90,
                                    ha='center', va='center', labelpad=10, fontsize=fz)
@@ -490,7 +492,8 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
         plt.savefig(plot_folder + prefix_new + loss + "_" + plotname + ".png", format='png', dpi=300, bbox_inches='tight')
 
 tile_plot(errors_test_vec, x_test, y_test, mask_test, out_test, plotname="test")
-tile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, plotname="test_clean")
+if PLOT_CLEAN:
+    tile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, plotname="test_clean")
 
 # %% Non-random phantoms of varying contrast
 plt.close("all")
@@ -531,4 +534,5 @@ def OOD_plot(out, x, name):
         plt.savefig(plot_folder + prefix_new + name + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
 
 OOD_plot(out3, x_test3, "eval_phantom_rhop7_")
-OOD_plot(out3_clean, x_test3_clean, "eval_phantom_rhop7_clean_")
+if PLOT_CLEAN:
+    OOD_plot(out3_clean, x_test3_clean, "eval_phantom_rhop7_clean_")
