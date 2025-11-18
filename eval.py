@@ -22,17 +22,17 @@ print("Device is", device)
 exp_date = "2025-10-23"
 load_prefix = "paper_sweep"
 N_train = 9500
-noise = 3
+noise = 0
 seed = 0
 
 # New eval choices
 subfolder = "figures_eval/"
 eval_loss_str_list = ["L1", "L0Clip", "DICE"]
-noise_new = 1
+noise_new = 2
 noise_distribution_new = "uniform"
 FLAG_BEST = True
 PLOT_CLEAN = False
-FLAG_LOCAL = True
+FLAG_LOCAL = not True
 
 # Get path
 prefix_new = noise_distribution_new + str(noise_new) + "_Best" + str(int(FLAG_BEST)) + "_"
@@ -362,7 +362,7 @@ def tile_plot(errors_vec, x_data, y_data, mask, out_data, plotname="test"):
         if not (vmax_stress > vmin_stress):
             vmin_stress, vmax_stress = vmin_stress - 1e-12, vmax_stress + 1e-12
             
-        all_inputs = np.stack(input_fields, axis=0)
+        all_inputs = np.stack(input_fields[1:], axis=0)
         vmin_input = float(np.nanmin(all_inputs))
         vmax_input = float(np.nanmax(all_inputs))
         if not (vmax_input > vmin_input):

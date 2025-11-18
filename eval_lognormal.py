@@ -32,10 +32,10 @@ noise_new = 1
 noise_distribution_new = "uniform"
 FLAG_BEST = True
 PLOT_CLEAN = True
-FLAG_LOCAL = True
+FLAG_LOCAL = not True
 
 # Get path
-prefix_new = noise_distribution_new + str(noise_new) + "_Best" + str(int(FLAG_BEST)) + "_"
+prefix_new = "lognormal_" + noise_distribution_new + str(noise_new) + "_Best" + str(int(FLAG_BEST)) + "_"
 plot_folder_base = "./results/" + exp_date + "/" + load_prefix
 save_path = plot_folder_base + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + str(seed) + "/"
 
