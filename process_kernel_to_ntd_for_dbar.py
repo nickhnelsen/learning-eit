@@ -81,36 +81,45 @@ def get_noisy(dataset, my_noise=noise_new, my_noise_distribution=noise_distribut
 # 3
 load_path = "/home/nnelsen/code/learning-eit/data_generation/solver_heartNlungs/data/"
 
-kernel = torch.load(load_path + 'kernel_heart.pt', weights_only=True)['kernel_3heart'][0,...][None,...]
-kernel_noisy = get_noisy(kernel, noise_new, noise_distribution_new)
+kernel = torch.load(load_path + 'kernel_heart.pt', weights_only=True)['kernel_3heart'][0,...][None,...].contiguous()
+kernel_noisy = get_noisy(kernel, noise_new, noise_distribution_new).contiguous()
+
+torch.save({'kernel': kernel.contiguous()}, save_path + 'kernel_heart_three_phase_clean.pt')
+torch.save({'kernel': kernel_noisy.contiguous()}, save_path + 'kernel_heart_three_phase_noisy.pt')
 
 ntd_3_clean = save_ntd(kernel, pathname='ND_heart_three_phase_clean.mat')
 ntd_3_noisy = save_ntd(kernel_noisy, pathname='ND_heart_three_phase_noisy.mat')
 
 ################################################################
 #
-# load and process bigger data
+# load and process bigger data for # 1 and 2
 #
 ################################################################
 
 data_folder = '/media/nnelsen/SharedHDD2TB/datasets/eit/'
 
 x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)['kernel_3heart'][...,::2,::2]
-x_test3 = x_test3[0,...].unsqueeze(0)
+x_test3 = x_test3[0,...].unsqueeze(0).contiguous()
 x_test_clean = torch.load(data_folder + 'kernel.pt', weights_only=True)['kernel'][...,::2,::2]
 
 # Fix same test data for all experiments
 x_test_clean = x_test_clean[-(N_val + N_test):,...]
 x_test_clean = x_test_clean[-N_test:,...]
-x_test_clean = x_test_clean[0,...].unsqueeze(0)
-x_test3_clean = x_test3[...]
+x_test_clean = x_test_clean[0,...].unsqueeze(0).contiguous()
+x_test3_clean = x_test3.contiguous()
 
 
-x_test3 = get_noisy(x_test3_clean, noise_new, noise_distribution_new)
-x_test = get_noisy(x_test_clean, noise_new, noise_distribution_new)
+x_test3 = get_noisy(x_test3_clean, noise_new, noise_distribution_new).contiguous()
+x_test = get_noisy(x_test_clean, noise_new, noise_distribution_new).contiguous()
+
+torch.save({'kernel': x_test3_clean}, save_path + 'kernel_heart_shape_clean.pt')
+torch.save({'kernel': x_test3}, save_path + 'kernel_heart_shape_noisy.pt')
 
 ntd_1_clean = save_ntd(x_test3_clean, pathname='ND_heart_shape_clean.mat')
 ntd_1_noisy = save_ntd(x_test3, pathname='ND_heart_shape_noisy.mat')
+
+torch.save({'kernel': x_test_clean}, save_path + 'kernel_idx0_shape_clean.pt')
+torch.save({'kernel': x_test}, save_path + 'kernel_idx0_shape_noisy.pt')
 
 ntd_2_clean = save_ntd(x_test_clean, pathname='ND_idx0_shape_clean.mat')
 ntd_2_noisy = save_ntd(x_test, pathname='ND_idx0_shape_noisy.mat')

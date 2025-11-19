@@ -34,7 +34,7 @@ Nvec = [-Ntrig + 1 : Ntrig];
 % mapping constant functions to zero. This follows from the fact that S_0
 % appears only in combination with DN maps (S_0 L_gamma and S_0 L_1), so
 % only functions integrating to zero are given as argument to S_0.
-S0 = 1/2*diag([1./[Ntrig-1:-1:1], 0, 1./[1:Ntrig]]);
+S0 = 1/2*diag([1./[(Ntrig-1):-1:1], 0, 1./[1:Ntrig]]);
 
 % Loop over points in the k-grid
 % load data/ex2Kvec Kvec
