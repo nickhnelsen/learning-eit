@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from models import FNO2d as my_model
 from util import plt
-from util.utilities_module import UnitGaussianNormalizer, count_params, set_seed, MatReader
+from util.utilities_module import UnitGaussianNormalizer, set_seed, MatReader
 from timeit import default_timer
 
 torch.set_printoptions(precision=16)
@@ -18,16 +18,20 @@ print("Device is", device)
 # Load training results
 exp_date = "2025-10-23"
 load_prefix = "paper_sweep"
-N_train_list = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 9500]
+N_train_list = [32, 128, 512, 2048, 9500]
+# N_train_subset = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 9500]
 noise = 0
 seed = 1
 FLAG_BEST = True
+FLAG_TITLE = True
+FLAG_OTRUE = True
 
 # New eval choices
 subfolder = "figures_dbar/"
-kernel_name = "kernel_heart_shape_noisy.pt"
-conductivity_name = "conductivity_heart_shape.pt"
-recon_name = "recon_heart_shape_noisy.mat"
+pname = "idx0_shape_clean"
+kernel_name = "kernel_idx0_shape_clean.pt"
+conductivity_name = "conductivity_idx0_shape.pt"
+recon_name = "recon_idx0_shape_clean.mat"
 
 # Load data
 load_path = '/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/ntd_samples/'
@@ -40,6 +44,10 @@ recon = recon.read_field('conductivity').unsqueeze(0)
 save_path_new = "./results/" + subfolder
 os.makedirs(save_path_new, exist_ok=True)
 pred_conductivity = []
+if FLAG_OTRUE:
+    origin_true = "lower"
+else:
+    origin_true = None
 
 for N_train in N_train_list:
     # Get path
@@ -153,6 +161,7 @@ for N_train in N_train_list:
     out[..., ~mask.cpu()] = float('nan')
     pred_conductivity.append(out.detach().cpu().numpy())
 
+# Store
 all_predict = np.stack(pred_conductivity, axis=0)
 num_predict = all_predict.shape[0]
 
@@ -207,7 +216,7 @@ color_list = ['k', 'C3', 'C5', 'C1', 'C2', 'C0', 'C4', 'C6', 'C7', 'C8', 'C9'] #
 plt.close("all")
 from matplotlib.lines import Line2D
 
-fz = 10
+fz = 18
 
 true_gamma = conductivity.squeeze()
 true_gamma[~mask.cpu()] = float('nan')
@@ -222,21 +231,24 @@ vmin = max(0.0, vmin)
 
 fig, axs = plt.subplots(1, num_predict + 2, num=100, figsize=(16, 2))
 
-ax = axs[0]
-ax.set_title('True', fontsize=fz)
-ax.imshow(true_gamma, interpolation='none', vmin=vmin, vmax=vmax)
-ax.set_frame_on(False)
-
 for i, out in enumerate(all_predict):
     N = N_train_list[i]
-    ax = axs[i + 1]
-    ax.set_title(rf'$N={N}$', fontsize=fz)
-    ax.imshow(out, interpolation='none', vmin=vmin, vmax=vmax, origin='lower')
+    ax = axs[i]
+    if FLAG_TITLE:
+        ax.set_title(rf'$N={N}$', fontsize=fz)
+    ax.imshow(out, interpolation='none', vmin=vmin, vmax=vmax, origin="lower")
     ax.set_frame_on(False)
+    
+ax = axs[-2]
+if FLAG_TITLE:
+    ax.set_title('True', fontsize=fz)
+ax.imshow(true_gamma, interpolation='none', vmin=vmin, vmax=vmax, origin=origin_true)
+ax.set_frame_on(False)
 
 ax = axs[-1]
-ax.set_title('D-bar', fontsize=fz)
-ax.imshow(dbar_gamma, interpolation='none')
+if FLAG_TITLE:
+    ax.set_title('D-bar', fontsize=fz)
+ax.imshow(dbar_gamma, interpolation='none', vmin=vmin, vmax=vmax)
 ax.set_frame_on(False)
 
 # Remove ticks from all subplots
@@ -244,31 +256,30 @@ for ax in axs:
     ax.set_xticks([])
     ax.set_yticks([])
 
-# First tighten the layout but leave room on the right for the colorbar
-# fig.tight_layout(rect=[0.0, 0.0, 0.86, 1.0])
-
 # Get positions (in figure coordinates)
-pos_true = axs[0].get_position()
-pos_N16  = axs[1].get_position()
-pos_lastN = axs[-2].get_position()
+pos_ltrue = axs[-3].get_position()
+pos_true  = axs[-2].get_position()
 pos_dbar  = axs[-1].get_position()
 
 fig = axs[0].figure
 
 # Common vertical span for the bars (use the first axes)
-y0 = pos_true.y0
-y1 = pos_true.y1
+y0 = pos_ltrue.y0
+y1 = pos_ltrue.y1
 
 # Height
-margin = 0.09   # play with this (0.0–0.1)
+if FLAG_TITLE:
+    margin = 0.09   # play with this (0.0–0.1)
+else:
+    margin = 0
 y0_bar = max(0.0, y0)
 y1_bar = min(1.0, y1 + margin)
 
-# x-location between True and N=16
-xbar1 = 0.5 * (pos_true.x1 + pos_N16.x0)
+# x-location between ltrue and true
+xbar1 = 0.5 * (pos_ltrue.x1 + pos_true.x0)
 
 # x-location between last N and D-bar
-xbar2 = 0.5 * (pos_lastN.x1 + pos_dbar.x0)
+xbar2 = 0.5 * (pos_true.x1 + pos_dbar.x0)
 
 # Add vertical lines in figure coordinates
 for x in (xbar1, xbar2):
@@ -278,5 +289,5 @@ for x in (xbar1, xbar2):
     fig.add_artist(line)
 
     
-# plt.savefig(plot_folder + prefix_new + name + str(i) + ".png", format='png', dpi=300, bbox_inches='tight')
+plt.savefig(plot_folder + "compare_" + pname + ".png", format='png', dpi=300, bbox_inches='tight')
 plt.show()
