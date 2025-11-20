@@ -26,7 +26,7 @@ load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/theta.mat', 'theta', 'N
 % load data/ex2DN DN DN1 Ntrig
 load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2DN.mat', 'DN', 'DN1', 'Ntrig');
 
-Nvec = [-Ntrig + 1 : Ntrig];
+Nvec = [-Ntrig : Ntrig];
 
 % Construct single layer operator. In the erratum of [Siltanen-Mueller-Isaacson 2000]
 % it is shown that the restriction of S_0 to functions with zero integral
@@ -34,13 +34,13 @@ Nvec = [-Ntrig + 1 : Ntrig];
 % mapping constant functions to zero. This follows from the fact that S_0
 % appears only in combination with DN maps (S_0 L_gamma and S_0 L_1), so
 % only functions integrating to zero are given as argument to S_0.
-S0 = 1/2*diag([1./[(Ntrig-1):-1:1], 0, 1./[1:Ntrig]]);
+S0 = 1/2*diag([1./[(Ntrig):-1:1], 0, 1./[1:Ntrig]]);
 
 % Loop over points in the k-grid
 % load data/ex2Kvec Kvec
 load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2Kvec.mat', 'Kvec');
 
-Fpsi_BIE = zeros(2*Ntrig,length(Kvec));
+Fpsi_BIE = zeros(2*Ntrig+1,length(Kvec));
 for kkk = 1:length(Kvec)
     k = Kvec(kkk);
     

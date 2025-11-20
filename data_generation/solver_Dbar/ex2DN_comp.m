@@ -24,11 +24,11 @@ DN = inv(NtoD);
 DN = (DN + DN')/2;  % self-adjoint part
 
 % Add appropriate zero row and zero column
-DN = [DN(:,1:Ntrig-1), zeros(2*Ntrig-1,1), DN(:,Ntrig:end)];
-DN = [DN(1:Ntrig-1,:); zeros(1,2*Ntrig); DN(Ntrig:end,:)];
+DN = [DN(:,1:Ntrig),zeros(2*Ntrig,1),DN(:,Ntrig+1:end)];
+DN = [DN(1:Ntrig,:);zeros(1,2*Ntrig+1);DN(Ntrig+1:end,:)];
 
 % Compute DN map of unit conductivity (analytically)
-DN1 = abs(diag([((-Ntrig)+1):Ntrig]));
+DN1 = abs(diag([-Ntrig:Ntrig]));
 
 % Save result to file
 save('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2DN.mat', 'DN', 'DN1', 'Ntrig');

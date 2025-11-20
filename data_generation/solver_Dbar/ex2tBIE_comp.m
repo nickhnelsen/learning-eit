@@ -27,9 +27,7 @@ load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2psi_BIE.mat', 'Fpsi_
 % load  data/ex2psi_BIE Fpsi_BIE
 
 % Load precomputed DN maps
-load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2DN.mat', 'DN', 'DN1','Ntrig');
-% load data/ex2DN DN DN1 Ntrig
-% Nvec = [-Ntrig+1 : Ntrig];
+load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2DN.mat', 'DN', 'DN1');
 
 nnv = length(Nvec);
 

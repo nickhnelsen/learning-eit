@@ -34,7 +34,7 @@ save('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/theta.mat', 'theta', 'N
 % load data/ex2Kvec Kvec
 load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2Kvec.mat', 'Kvec');
 
-Nvec = [-Ntrig + 1 : Ntrig];
+Nvec = [-Ntrig : Ntrig];
 % NOTE: even faster acceleration with zero-padded FFT/IFFT up to Ntheta resolution
 for kkk = 1:length(Kvec)
     k = Kvec(kkk);

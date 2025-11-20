@@ -10,7 +10,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("Device is", device)
 
 
-
 def my_flip(x):
     x = torch.cat((x[...,0:1], torch.flip(x[...,1:], [-1])), -1)
     return x
@@ -45,7 +44,7 @@ def get_ntd_from_kernel(x, shift=True):
 
 
 save_path = "/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/ntd_samples/"
-sub_res = 2 # subsmaple from 256 by 256
+sub_res = 8 # subsample from 256 by 256
 N_train = 9500
 noise_new = 1
 noise_distribution_new = "uniform"
@@ -54,14 +53,14 @@ N_val = 100
 N_test = 400
 N_max = 10000
 
-Ntrig = (256//sub_res)//2
-Nvec = torch.cat([torch.arange(-Ntrig + 1, 0), torch.arange(1, Ntrig+1)]).to(torch.float64)
+Ntrig = (256//sub_res)//2 - 1
+Nvec = torch.cat([torch.arange(-Ntrig, 0), torch.arange(1, Ntrig+1)]).to(torch.float64)
 
 # three conductitivities: 1) OOD shape detection heart lungs 2) x_test[0,...] shape, 3) heart_lung three phase
 def save_ntd(kernel, Ntrig=Ntrig, Nvec=Nvec, shift=True, pathname='ND.mat'):
-    assert kernel.shape[-1] == 2*Ntrig
+    assert kernel.shape[-1] == 2*(Ntrig+1)
     
-    ntd = get_ntd_from_kernel(kernel.to(torch.float64), shift=shift).squeeze()
+    ntd = get_ntd_from_kernel(kernel.to(torch.float64), shift=shift)[...,1:,1:].squeeze() # remove largest frequency
     
     savemat(save_path + pathname, {
         'NtoD': ntd.detach().cpu().numpy(),
