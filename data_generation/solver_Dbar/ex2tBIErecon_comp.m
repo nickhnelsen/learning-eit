@@ -18,12 +18,12 @@ scatBIE(abs(K1+1i*K2)<tMAX) = tBIE;
 
 % NOTE: Choose parameter M so gridsize=2^M for the computational grid
 M = 8;
-Mx = 5; % NOTE: change Mx for higher resolution reconstruction
-fudge = 2.3;
+Mx = 8; % NOTE: change Mx for higher resolution reconstruction
+fudge = 2.1;
 % fraction_tmax = 0.9;
 
-% NOTE: Choose truncation radius R>0
-R = 5; %fraction_tmax*tMAX; % TODO: around R=7-8 for clean data, R=5-6 for noisy data
+% NOTE: Choose truncation radius R>06
+R = 4.9; %fraction_tmax*tMAX; % TODO: around R=6-8 for clean data, R=4-6 for noisy data
 if R>tMAX    error(['N_recon.m: Truncation radius R=', num2str(R), ' too big, must be less than ', num2str(tMAX)])
 end
 
