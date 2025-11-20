@@ -34,7 +34,7 @@ nnv = length(Nvec);
 
 % Apply DN maps to evaluate (Lg-L1) psi(x,k) using memory efficient loop
 FLLpsi = (DN - DN1)*Fpsi_BIE;
-FLLpsi = reshape(FLLpsi.', [], 1, nnv);     % (K, 1, n_vec)
+FLLpsi = reshape(FLLpsi.', [], 1, nnv);     % (n_k, 1, n_vec)
 tBIE = exp(1i*reshape(theta*Nvec, 1, [], nnv)); % (1, n_theta, n_vec)
 tBIE = squeeze(tBIE);
 n_k = length(Kvec);

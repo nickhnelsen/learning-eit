@@ -23,7 +23,7 @@ fudge = 2.3;
 % fraction_tmax = 0.9;
 
 % NOTE: Choose truncation radius R>0
-R = 4; %fraction_tmax*tMAX; % TODO: around R=10 for clean data, R=7 or 8 for noisy data
+R = 6.8; %fraction_tmax*tMAX; % TODO: around R=10 for clean data, R=7 or 8 for noisy data
 if R>tMAX    error(['N_recon.m: Truncation radius R=', num2str(R), ' too big, must be less than ', num2str(tMAX)])
 end
 

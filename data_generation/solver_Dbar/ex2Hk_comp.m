@@ -22,7 +22,7 @@ Ntrig = 128; % number of Fourier basis solves divided by two to get NtD map
 
 % Construct integration points (angles) on the circle
 % NOTE: change unit circle discretization resolution here
-Ntheta = 256;
+Ntheta = 128;
 theta  = 2*pi*[0:(Ntheta-1)]/Ntheta;
 theta  = theta(:);
 Dtheta = theta(2)-theta(1);

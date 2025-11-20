@@ -494,7 +494,7 @@ if PLOT_CLEAN:
     tile_plot(errors_test_clean_vec, x_test_clean, y_test, mask_test, out_test_clean, plotname="test_clean")
 
 
-# %% Non-random phantoms of varying contrast
+# Non-random phantoms of varying contrast
 plt.close("all")
 plt.rcParams['font.size'] = 11
 
