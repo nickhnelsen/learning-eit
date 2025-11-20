@@ -14,11 +14,11 @@
 %
 % Samuli Siltanen June 2012; Nicholas H. Nelsen 2025
 
-% NOTE: Order Ntrig of trigonometric approximation is loaded from file ex2DN_comp.m. 
+% NOTE: Order Ntrig of trigonometric approximation is loaded from file
 % Basis will be exp(i*n*theta) for n = [-Ntrig + 1 : Ntrig].
-
-%load data/ND Ntrig % OLD, do not use
-Ntrig = 128; % number of Fourier basis solves divided by two to get NtD map
+% number of Fourier basis solves divided by two to get NtD map
+load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ND.mat', 'Ntrig');
+Ntrig = double(Ntrig);
 
 % Construct integration points (angles) on the circle
 % NOTE: change unit circle discretization resolution here

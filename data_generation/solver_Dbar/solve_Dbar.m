@@ -3,7 +3,7 @@
 clc; clear variables; close all;
 
 %% precompute if needed
-FLAG_PRE = false;
+FLAG_PRE = true;
 if FLAG_PRE
     precompute;
 end

@@ -45,8 +45,7 @@ def get_ntd_from_kernel(x, shift=True):
 
 
 save_path = "/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/ntd_samples/"
-Ntrig = 128
-
+sub_res = 2 # subsmaple from 256 by 256
 N_train = 9500
 noise_new = 1
 noise_distribution_new = "uniform"
@@ -55,6 +54,7 @@ N_val = 100
 N_test = 400
 N_max = 10000
 
+Ntrig = (256//sub_res)//2
 Nvec = torch.cat([torch.arange(-Ntrig + 1, 0), torch.arange(1, Ntrig+1)]).to(torch.float64)
 
 # three conductitivities: 1) OOD shape detection heart lungs 2) x_test[0,...] shape, 3) heart_lung three phase
@@ -89,8 +89,8 @@ torch.save({'conductivity': cond.contiguous()}, save_path + 'conductivity_heart_
 torch.save({'kernel': kernel.contiguous()}, save_path + 'kernel_heart_three_phase_clean.pt')
 torch.save({'kernel': kernel_noisy.contiguous()}, save_path + 'kernel_heart_three_phase_noisy.pt')
 
-ntd_3_clean = save_ntd(kernel, pathname='ND_heart_three_phase_clean.mat')
-ntd_3_noisy = save_ntd(kernel_noisy, pathname='ND_heart_three_phase_noisy.mat')
+ntd_3_clean = save_ntd(kernel[...,::sub_res,::sub_res], pathname='ND_heart_three_phase_clean.mat')
+ntd_3_noisy = save_ntd(kernel_noisy[...,::sub_res,::sub_res], pathname='ND_heart_three_phase_noisy.mat')
 
 ################################################################
 #
@@ -126,12 +126,12 @@ torch.save({'kernel': x_test3_clean}, save_path + 'kernel_heart_shape_clean.pt')
 torch.save({'kernel': x_test3}, save_path + 'kernel_heart_shape_noisy.pt')
 torch.save({'conductivity': y_test3}, save_path + 'conductivity_heart_shape.pt')
 
-ntd_1_clean = save_ntd(x_test3_clean, pathname='ND_heart_shape_clean.mat')
-ntd_1_noisy = save_ntd(x_test3, pathname='ND_heart_shape_noisy.mat')
+ntd_1_clean = save_ntd(x_test3_clean[...,::sub_res,::sub_res], pathname='ND_heart_shape_clean.mat')
+ntd_1_noisy = save_ntd(x_test3[...,::sub_res,::sub_res], pathname='ND_heart_shape_noisy.mat')
 
 torch.save({'kernel': x_test_clean}, save_path + 'kernel_idx0_shape_clean.pt')
 torch.save({'kernel': x_test}, save_path + 'kernel_idx0_shape_noisy.pt')
 torch.save({'conductivity': y_test}, save_path + 'conductivity_idx0_shape.pt')
 
-ntd_2_clean = save_ntd(x_test_clean, pathname='ND_idx0_shape_clean.mat')
-ntd_2_noisy = save_ntd(x_test, pathname='ND_idx0_shape_noisy.mat')
+ntd_2_clean = save_ntd(x_test_clean[...,::sub_res,::sub_res], pathname='ND_idx0_shape_clean.mat')
+ntd_2_noisy = save_ntd(x_test[...,::sub_res,::sub_res], pathname='ND_idx0_shape_noisy.mat')

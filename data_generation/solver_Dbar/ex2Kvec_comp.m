@@ -3,7 +3,7 @@
 % Samuli Siltanen June 2012
 
 % Collection of complex generalized nonzero wave numbers k 
-R       = 9;
+R       = 10;
 h       = 2*R/126; % choose this so that size(tt) = 128 points
 N       = round(R/h);
 K       = h/2 + [0:N]*h;

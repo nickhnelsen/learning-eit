@@ -23,13 +23,14 @@ load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/theta.mat', 'theta', 'N
 % load data/theta theta Ntheta Dtheta
 
 % Load precomputed Fourier coefficients of the traces of psi
-load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2psi_BIE.mat', 'Fpsi_BIE');
+load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2psi_BIE.mat', 'Fpsi_BIE', 'Nvec');
 % load  data/ex2psi_BIE Fpsi_BIE
 
 % Load precomputed DN maps
 load('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2DN.mat', 'DN', 'DN1','Ntrig');
 % load data/ex2DN DN DN1 Ntrig
-Nvec = [-Ntrig+1 : Ntrig];
+% Nvec = [-Ntrig+1 : Ntrig];
+
 nnv = length(Nvec);
 
 % Apply DN maps to evaluate (Lg-L1) psi(x,k) using memory efficient loop
