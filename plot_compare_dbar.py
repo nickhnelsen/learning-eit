@@ -177,7 +177,7 @@ for N_train in N_train_list:
     print("FNO parameter count:", count_params(model))
     
     
-# TODO
+# TODO: loop above and combine with below
 
 ################################################################
 #

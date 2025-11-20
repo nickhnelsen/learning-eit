@@ -85,7 +85,6 @@ cond = torch.load(load_path + 'conductivity_heart.pt', weights_only=True)['condu
 kernel = torch.load(load_path + 'kernel_heart.pt', weights_only=True)['kernel_3heart'][0,...][None,...].contiguous()
 kernel_noisy = get_noisy(kernel, noise_new, noise_distribution_new).contiguous()
 
-# TODO: save conductivity pt file too
 torch.save({'conductivity': cond.contiguous()}, save_path + 'conductivity_heart_three_phase.pt')
 torch.save({'kernel': kernel.contiguous()}, save_path + 'kernel_heart_three_phase_clean.pt')
 torch.save({'kernel': kernel_noisy.contiguous()}, save_path + 'kernel_heart_three_phase_noisy.pt')
@@ -105,24 +104,34 @@ x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)[
 x_test3 = x_test3[0,...].unsqueeze(0).contiguous()
 x_test_clean = torch.load(data_folder + 'kernel.pt', weights_only=True)['kernel'][...,::2,::2]
 
+y_test3 = torch.load(data_folder + 'conductivity_3heart_rhop7.pt', weights_only=True)['conductivity_3heart'][0,...].unsqueeze(0).contiguous()
+y_test = torch.load(data_folder + 'conductivity.pt', weights_only=True)['conductivity']
+
 # Fix same test data for all experiments
 x_test_clean = x_test_clean[-(N_val + N_test):,...]
 x_test_clean = x_test_clean[-N_test:,...]
 x_test_clean = x_test_clean[0,...].unsqueeze(0).contiguous()
 x_test3_clean = x_test3.contiguous()
 
+y_test = y_test[-(N_val + N_test):,...]
+y_test = y_test[-N_test:,...]
+y_test = y_test[0,...].unsqueeze(0).contiguous()
+y_test3 = y_test3.contiguous()
 
+# Add noise
 x_test3 = get_noisy(x_test3_clean, noise_new, noise_distribution_new).contiguous()
 x_test = get_noisy(x_test_clean, noise_new, noise_distribution_new).contiguous()
 
 torch.save({'kernel': x_test3_clean}, save_path + 'kernel_heart_shape_clean.pt')
 torch.save({'kernel': x_test3}, save_path + 'kernel_heart_shape_noisy.pt')
+torch.save({'conductivity': y_test3}, save_path + 'conductivity_heart_shape.pt')
 
 ntd_1_clean = save_ntd(x_test3_clean, pathname='ND_heart_shape_clean.mat')
 ntd_1_noisy = save_ntd(x_test3, pathname='ND_heart_shape_noisy.mat')
 
 torch.save({'kernel': x_test_clean}, save_path + 'kernel_idx0_shape_clean.pt')
 torch.save({'kernel': x_test}, save_path + 'kernel_idx0_shape_noisy.pt')
+torch.save({'conductivity': y_test}, save_path + 'conductivity_idx0_shape.pt')
 
 ntd_2_clean = save_ntd(x_test_clean, pathname='ND_idx0_shape_clean.mat')
 ntd_2_noisy = save_ntd(x_test, pathname='ND_idx0_shape_noisy.mat')
