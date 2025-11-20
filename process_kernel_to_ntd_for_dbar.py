@@ -44,7 +44,7 @@ def get_ntd_from_kernel(x, shift=True):
 
 
 save_path = "/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/ntd_samples/"
-sub_res = 8 # subsample from 256 by 256
+sub_res = 2 # subsample from 256 by 256
 N_train = 9500
 noise_new = 1
 noise_distribution_new = "uniform"

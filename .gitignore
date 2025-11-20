@@ -168,6 +168,7 @@ fno_kernel/figures
 **/green_LS.mat
 **/solver/LS_cgo_2D/data/
 **/results/
+data_generation/solver/data/ND_big.mat
 
 # ---------------------------------------------------------------------------
 # Overrides: always include useful scripts and configuration files

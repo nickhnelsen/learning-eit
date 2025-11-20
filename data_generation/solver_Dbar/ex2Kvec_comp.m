@@ -17,4 +17,3 @@ Kvec    = Kvec(abs(Kvec)<R);
 tMAX = R;
 % save data/ex2Kvec Kvec R h K1 K2 tt tMAX
 save('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2Kvec.mat', 'Kvec', 'R', 'h', 'K1', 'K2', 'tt', 'tMAX');
-

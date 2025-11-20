@@ -34,12 +34,45 @@ try
     close(1)
 catch
 end
-figure(2)
-clf
-imagesc([tBIE_plot1,tBIE_plot2])
-axis equal
-axis off
-colormap(MAP)
+% figure(2)
+% clf
+% imagesc([tBIE_plot1,tBIE_plot2])
+% axis equal
+% axis off
+% colormap(MAP)
 
 % Save image to file
 %print -dpng ex2scatLSBIE.png
+
+% Assume K1, K2 are the same size as tBIE_plot1 etc.
+% Use 1D coordinate vectors from the grids:
+k1_vec = K1(1,:);    % x-coordinates
+k2_vec = K2(:,1);    % y-coordinates
+
+figure(2); clf
+
+% Real part
+subplot(1,2,1)
+imagesc(k1_vec, k2_vec, tBIE_plot1);
+set(gca, 'YDir', 'normal');   % so K2 increases upwards
+axis equal
+xlim([-R,R])
+ylim([-R,R])
+xlabel('K_1');
+ylabel('K_2');
+title('Re, t_{BIE}');
+colormap(MAP);   % your custom colormap
+colorbar
+
+% Imaginary part
+subplot(1,2,2)
+imagesc(k1_vec, k2_vec, tBIE_plot2);
+set(gca, 'YDir', 'normal');
+axis equal
+xlim([-R,R])
+ylim([-R,R])
+xlabel('K_1');
+ylabel('K_2');
+title('Im, t_{BIE}');
+colormap(MAP);
+colorbar

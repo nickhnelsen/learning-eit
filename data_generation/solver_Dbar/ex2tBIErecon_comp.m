@@ -17,13 +17,13 @@ scatBIE = zeros(size(K1));
 scatBIE(abs(K1+1i*K2)<tMAX) = tBIE;
 
 % NOTE: Choose parameter M so gridsize=2^M for the computational grid
-M = 7;
-Mx = 8; % NOTE: change Mx for higher resolution reconstruction
+M = 8;
+Mx = 5; % NOTE: change Mx for higher resolution reconstruction
 fudge = 2.3;
 % fraction_tmax = 0.9;
 
 % NOTE: Choose truncation radius R>0
-R = 6.8; %fraction_tmax*tMAX; % TODO: around R=7-8 for clean data, R=5-6 for noisy data
+R = 5; %fraction_tmax*tMAX; % TODO: around R=7-8 for clean data, R=5-6 for noisy data
 if R>tMAX    error(['N_recon.m: Truncation radius R=', num2str(R), ' too big, must be less than ', num2str(tMAX)])
 end
 
@@ -113,3 +113,5 @@ disp(['Done (Reconstruction) ', 'in ', num2str(toc), ' seconds.'])
 
 % Write results to file
 save('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/ex2recon.mat', 'x1', 'x2', 'recon');
+conductivity = reshape(real(recon),size(x1));
+save('/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/data/recon.mat', 'x1', 'x2', 'conductivity');
