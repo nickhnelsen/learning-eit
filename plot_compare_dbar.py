@@ -25,161 +25,159 @@ seed = 1
 
 # New eval choices
 subfolder = "figures_dbar/"
-noise_new = 2
-noise_distribution_new = "uniform"
 FLAG_BEST = True
-PLOT_CLEAN = False
-FLAG_LOCAL = not True
 
 save_path_new = "./results/" + subfolder
 os.makedirs(save_path_new, exist_ok=True)
 
-load_path = '/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/ntd_samples'
-pp = ppoopoo
+load_path = '/media/nnelsen/SharedHDD2TB/datasets/eit/dbar/ntd_samples/'
+conductivity_name = "kernel_heart_shape_noisy.pt"
+
+cond = torch.load(load_path + conductivity_name, weights_only=True)['kernel']
+
 
 for N_train in N_train_list:
-# Get path
-prefix_new = noise_distribution_new + str(noise_new) + "_Best" + str(int(FLAG_BEST)) + "_"
-plot_folder_base = "./results/" + exp_date + "/" + load_prefix
-load_path = plot_folder_base + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + str(seed) + "/"
-
-# Get config
-CONFIG_PATH = save_path + "config.yaml"     # hard coded path
-with open(CONFIG_PATH, "r") as f:
-    config = yaml.safe_load(f)
-
-# Set seed
-if seed is not None:
-    set_seed(seed)
-
-# File I/O
-if FLAG_LOCAL:
-    data_folder = "/home/nnelsen/data/eit/shape_detection/"
-else:
-    data_folder = config['data_folder']
-
-# Sample size
-N_val = config['N_val']
-N_test = config['N_test']
-N_max = config['N_max']
-
-# Resolution subsampling
-sub_in = config['sub_in']
-sub_out = config['sub_out']
-sub_in_test = config['sub_in_test']
-sub_out_test = config['sub_out_test']
-
-# FNO
-modes1 = config['modes1']
-modes2 = config['modes2']
-width = config['width']
-width_final = config['width_final']
-act = config['act']
-n_layers = config['n_layers']
-
-# Training, evaluation, and testing
-FLAG_SHUFFLE = config['FLAG_SHUFFLE']
-noise_distribution = config['noise_distribution']
-
-# Checks
-assert N_train + N_val + N_test <= N_max
-assert sub_in_test <= sub_in and sub_out_test <= sub_out
-
-################################################################
-#
-# load and process data
-#
-################################################################
-
-start = default_timer()
-
-x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)['kernel_3heart'][...,::sub_in_test,::sub_in_test]
-y_test3 = torch.load(data_folder + 'conductivity_3heart_rhop7.pt', weights_only=True)['conductivity_3heart'][...,::sub_out_test,::sub_out_test]
-y_test3 = torch.flip(y_test3, [-2])
-
-sub_in_ratio = sub_in//sub_in_test
-sub_out_ratio = sub_out//sub_out_test
-x_train = torch.load(data_folder + 'kernel.pt', weights_only=True)['kernel'][...,::sub_in_test,::sub_in_test]
-y_train = torch.load(data_folder + 'conductivity.pt', weights_only=True)['conductivity'][...,::sub_out_test,::sub_out_test]
-mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out_test,::sub_out_test]
-mask_test = mask.to(device)
-mask = mask_test[::sub_out_ratio,::sub_out_ratio].to(device)
-
-# Fix same test data for all experiments
-x_test_clean = x_train[-(N_val + N_test):,...]
-x_test_clean = x_test_clean[-N_test:,...]
-x_test3_clean = x_test3[...]
-
-# Get noisy inputs
-def get_noisy(dataset, my_noise=noise, my_noise_distribution=noise_distribution):
-    rf = RandomField(dataset.shape[-1], distribution=my_noise_distribution, device=device)
-    dataset_noisy = rf.generate_noise_dataset(dataset.shape[0])
-    dataset_noisy = (my_noise/100)*(integrate(dataset**2).sqrt()[:,None,None])*dataset_noisy
-    dataset_noisy = dataset + dataset_noisy
-    return dataset_noisy
-
-if noise > 0.0:
-    x_train = get_noisy(x_train, noise, noise_distribution)
-
-if noise_new > 0:
-    x_test3 = get_noisy(x_test3, noise_new, noise_distribution_new)
-
-x_test = get_noisy(x_test_clean, noise_new, noise_distribution_new)
-x_train = x_train[:-(N_val + N_test),...]
-
-y_test = y_train[-(N_val + N_test):,...]
-y_test = y_test[-N_test:,...]
-y_train = y_train[:-(N_val + N_test),...]
-
-# Shuffle training set selection
-if FLAG_SHUFFLE:
-    dataset_shuffle_idx = torch.load(save_path + 'idx_shuffle.pt', weights_only=True)
-    x_train = x_train[dataset_shuffle_idx,...]
-    y_train = y_train[dataset_shuffle_idx,...]
-else:
-    dataset_shuffle_idx = torch.arange(x_train.shape[0])
+    # Get path
+    prefix_new = "Best" + str(int(FLAG_BEST)) + "_"
+    plot_folder_base = "./results/" + exp_date + "/" + load_prefix
+    load_path = plot_folder_base + "_N" + str(N_train) + "_Noise" + str(noise) + "_Seed" + str(seed) + "/"
     
-x_train = x_train[:N_train,...]
-y_train = y_train[:N_train,::sub_out_ratio,::sub_out_ratio]
-
-x_normalizer = UnitGaussianNormalizer(x_train)
-x_train = x_normalizer.encode(x_train)[:,::sub_in_ratio,::sub_in_ratio]
-x_test = x_normalizer.encode(x_test)
-x_test_clean = x_normalizer.encode(x_test_clean)
-x_test3 = x_normalizer.encode(x_test3)
-x_test3_clean = x_normalizer.encode(x_test3_clean)
-
-# Make the singleton channel dimension match the FNO2D model input shape requirement
-x_train = torch.unsqueeze(x_train, 1)
-x_test = torch.unsqueeze(x_test, 1)
-x_test_clean = torch.unsqueeze(x_test_clean, 1)
-x_test3 = torch.unsqueeze(x_test3, 1)
-x_test3_clean = torch.unsqueeze(x_test3_clean, 1)
-
-print("Total time for data processing is", (default_timer()-start), "sec.")
-
-################################################################
-#
-# load model
-#
-################################################################
-model = my_model(modes1=modes1,
-                 modes2=modes2,
-                 width=width,
-                 width_final=width_final,
-                 act=act,
-                 n_layers=n_layers
-                 ).to(device)
-
-if FLAG_BEST:
-    print("Evaluating the best model.")
-    model.load_state_dict(torch.load(save_path + 'model_best.pt', weights_only=True))
-else:
-    print("Evaluating the final epoch model.")
-    model.load_state_dict(torch.load(save_path + 'model_last.pt', weights_only=True))
-print(model)
-model.eval()
-print("FNO parameter count:", count_params(model))
+    # Get config
+    CONFIG_PATH = load_path + "config.yaml"     # hard coded path
+    with open(CONFIG_PATH, "r") as f:
+        config = yaml.safe_load(f)
+    
+    # Set seed
+    if seed is not None:
+        set_seed(seed)
+    
+    data_folder = config['data_folder']
+    
+    # Sample size
+    N_val = config['N_val']
+    N_test = config['N_test']
+    N_max = config['N_max']
+    
+    # Resolution subsampling
+    sub_in = config['sub_in']
+    sub_out = config['sub_out']
+    sub_in_test = config['sub_in_test']
+    sub_out_test = config['sub_out_test']
+    
+    # FNO
+    modes1 = config['modes1']
+    modes2 = config['modes2']
+    width = config['width']
+    width_final = config['width_final']
+    act = config['act']
+    n_layers = config['n_layers']
+    
+    # Training, evaluation, and testing
+    FLAG_SHUFFLE = config['FLAG_SHUFFLE']
+    noise_distribution = config['noise_distribution']
+    
+    # Checks
+    assert N_train + N_val + N_test <= N_max
+    assert sub_in_test <= sub_in and sub_out_test <= sub_out
+    
+    ################################################################
+    #
+    # load and process data
+    #
+    ################################################################
+    
+    start = default_timer()
+    
+    x_test3 = torch.load(data_folder + 'kernel_3heart_rhop7.pt', weights_only=True)['kernel_3heart'][...,::sub_in_test,::sub_in_test]
+    y_test3 = torch.load(data_folder + 'conductivity_3heart_rhop7.pt', weights_only=True)['conductivity_3heart'][...,::sub_out_test,::sub_out_test]
+    y_test3 = torch.flip(y_test3, [-2])
+    
+    sub_in_ratio = sub_in//sub_in_test
+    sub_out_ratio = sub_out//sub_out_test
+    x_train = torch.load(data_folder + 'kernel.pt', weights_only=True)['kernel'][...,::sub_in_test,::sub_in_test]
+    y_train = torch.load(data_folder + 'conductivity.pt', weights_only=True)['conductivity'][...,::sub_out_test,::sub_out_test]
+    mask = torch.load(data_folder + 'mask.pt', weights_only=True)['mask'][::sub_out_test,::sub_out_test]
+    mask_test = mask.to(device)
+    mask = mask_test[::sub_out_ratio,::sub_out_ratio].to(device)
+    
+    # Fix same test data for all experiments
+    x_test_clean = x_train[-(N_val + N_test):,...]
+    x_test_clean = x_test_clean[-N_test:,...]
+    x_test3_clean = x_test3[...]
+    
+    # Get noisy inputs
+    def get_noisy(dataset, my_noise=noise, my_noise_distribution=noise_distribution):
+        rf = RandomField(dataset.shape[-1], distribution=my_noise_distribution, device=device)
+        dataset_noisy = rf.generate_noise_dataset(dataset.shape[0])
+        dataset_noisy = (my_noise/100)*(integrate(dataset**2).sqrt()[:,None,None])*dataset_noisy
+        dataset_noisy = dataset + dataset_noisy
+        return dataset_noisy
+    
+    if noise > 0.0:
+        x_train = get_noisy(x_train, noise, noise_distribution)
+    
+    if noise_new > 0:
+        x_test3 = get_noisy(x_test3, noise_new, noise_distribution_new)
+    
+    x_test = get_noisy(x_test_clean, noise_new, noise_distribution_new)
+    x_train = x_train[:-(N_val + N_test),...]
+    
+    y_test = y_train[-(N_val + N_test):,...]
+    y_test = y_test[-N_test:,...]
+    y_train = y_train[:-(N_val + N_test),...]
+    
+    # Shuffle training set selection
+    if FLAG_SHUFFLE:
+        dataset_shuffle_idx = torch.load(save_path + 'idx_shuffle.pt', weights_only=True)
+        x_train = x_train[dataset_shuffle_idx,...]
+        y_train = y_train[dataset_shuffle_idx,...]
+    else:
+        dataset_shuffle_idx = torch.arange(x_train.shape[0])
+        
+    x_train = x_train[:N_train,...]
+    y_train = y_train[:N_train,::sub_out_ratio,::sub_out_ratio]
+    
+    x_normalizer = UnitGaussianNormalizer(x_train)
+    x_train = x_normalizer.encode(x_train)[:,::sub_in_ratio,::sub_in_ratio]
+    x_test = x_normalizer.encode(x_test)
+    x_test_clean = x_normalizer.encode(x_test_clean)
+    x_test3 = x_normalizer.encode(x_test3)
+    x_test3_clean = x_normalizer.encode(x_test3_clean)
+    
+    # Make the singleton channel dimension match the FNO2D model input shape requirement
+    x_train = torch.unsqueeze(x_train, 1)
+    x_test = torch.unsqueeze(x_test, 1)
+    x_test_clean = torch.unsqueeze(x_test_clean, 1)
+    x_test3 = torch.unsqueeze(x_test3, 1)
+    x_test3_clean = torch.unsqueeze(x_test3_clean, 1)
+    
+    print("Total time for data processing is", (default_timer()-start), "sec.")
+    
+    ################################################################
+    #
+    # load model
+    #
+    ################################################################
+    model = my_model(modes1=modes1,
+                     modes2=modes2,
+                     width=width,
+                     width_final=width_final,
+                     act=act,
+                     n_layers=n_layers
+                     ).to(device)
+    
+    if FLAG_BEST:
+        print("Evaluating the best model.")
+        model.load_state_dict(torch.load(save_path + 'model_best.pt', weights_only=True))
+    else:
+        print("Evaluating the final epoch model.")
+        model.load_state_dict(torch.load(save_path + 'model_last.pt', weights_only=True))
+    print(model)
+    model.eval()
+    print("FNO parameter count:", count_params(model))
+    
+    
+# TODO
 
 ################################################################
 #

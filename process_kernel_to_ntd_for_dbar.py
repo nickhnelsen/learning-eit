@@ -81,9 +81,12 @@ def get_noisy(dataset, my_noise=noise_new, my_noise_distribution=noise_distribut
 # 3
 load_path = "/home/nnelsen/code/learning-eit/data_generation/solver_heartNlungs/data/"
 
+cond = torch.load(load_path + 'conductivity_heart.pt', weights_only=True)['conductivity_3heart'][0,...][None,...].contiguous()
 kernel = torch.load(load_path + 'kernel_heart.pt', weights_only=True)['kernel_3heart'][0,...][None,...].contiguous()
 kernel_noisy = get_noisy(kernel, noise_new, noise_distribution_new).contiguous()
 
+# TODO: save conductivity pt file too
+torch.save({'conductivity': cond.contiguous()}, save_path + 'conductivity_heart_three_phase.pt')
 torch.save({'kernel': kernel.contiguous()}, save_path + 'kernel_heart_three_phase_clean.pt')
 torch.save({'kernel': kernel_noisy.contiguous()}, save_path + 'kernel_heart_three_phase_noisy.pt')
 
