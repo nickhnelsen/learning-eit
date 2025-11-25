@@ -1,5 +1,9 @@
 # learning-eit
-learn-eit contains the code used to reproduce the numerical experiments in the paper ``Extension and neural operator approximation of the electrical impedance tomography inverse map.'' It contains training and evaluation job scripts for Fourier Neural Operators (FNOs), data generation files, data processing and plotting routines, and an implementation of the regularized D-bar method direct EIT solver.
+learn-eit contains the code used to reproduce the numerical experiments in the paper ``Extension and neural operator approximation of the electrical impedance tomography inverse map.'' It includes:
+- Training and evaluation scripts for Fourier Neural Operators (FNOs)
+- MATLAB data generation routines for EIT forward problems
+- Data processing and plotting utilities
+- An implementation of the regularized D-bar EIT reconstruction method
 
 The FNO code defaults to running on GPU, if one is available.
 
@@ -21,7 +25,6 @@ conda deactivate
 
 ## Data
 The three datasets in the paper will be made publicly available soon. In the meantime, you may generate your own data in MATLAB (this will take over one day of wall-clock time). The requirements are:
-# MATLAB Data Generation Requirements
 * MATLAB R2019b
 * Partial Differential Equation Toolbox
 * Image Processing Toolbox
