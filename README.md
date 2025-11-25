@@ -1,20 +1,50 @@
-# learning-eit (OLD BELOW, TODO UPDATE README)
-Forward solves divergence-form elliptic equation for Neumann/Dirichlet data pairs given a electrical conducitivity field on the unit disk; linear Gaussian Bayesian inversion for Neumann-to-Dirichlet (NtD) and Dirichlet-to-Neumann (DtN) maps; approximates the electrical impedance tomography (EIT) inversion operator with a Fourier Neural Operator-based Operator Recurrent Neural Network (OR-FNO), i.e., DtN input is operator-valued; learns an approximation from this class from noisy input-output data pairs. For comparison, also includes the regularized D-bar method as a direct inversion method for EIT
+# learning-eit
+learn-eit contains the code used to reproduce the numerical experiments in the paper ``Extension and neural operator approximation of the electrical impedance tomography inverse map.'' It contains training and evaluation job scripts for Fourier Neural Operators (FNOs), data generation files, data processing and plotting routines, and an implementation of the regularized D-bar method direct EIT solver.
 
-## Requirements
-MATLAB (for solver and data generation)
-* MATLAB 2019a
+The FNO code defaults to running on GPU, if one is available.
+
+## Installation
+The command
+```
+conda env create -f Project.yml
+```
+creates an environment called ``eit``. [PyTorch](https://pytorch.org/) will be installed in this step.
+
+Activate the environment with
+```
+conda activate eit
+```
+and deactivate with
+```
+conda deactivate
+```
+
+## Data
+The three datasets in the paper will be made publicly available soon. In the meantime, you may generate your own data in MATLAB (this will take over one day of wall-clock time). The requirements are:
+# MATLAB Data Generation Requirements
+* MATLAB R2019b
 * Partial Differential Equation Toolbox
 * Image Processing Toolbox
-
-Python (for training and testing neural operator model)
-* Python 3
-* PyTorch 1.9.0 or later
-* numpy
-* scipy
 
 ## References
 - [Fourier Neural Operator for Parametric Partial Differential Equations](https://arxiv.org/abs/2010.08895)
 - [Linear and Nonlinear Inverse Problems with Practical Applications](https://epubs.siam.org/doi/book/10.1137/1.9781611972344?mobileUi=0)
-- [Deep learning architectures for nonlinear operator functions and nonlinear inverse problems](https://arxiv.org/abs/1912.11090)
-- [Convergence Rates for Learning Linear Operators from Noisy Data](https://arxiv.org/abs/2108.12515)
+- [Operator learning meets inverse problems: A probabilistic perspective](https://arxiv.org/abs/2508.20207)
+- [An operator learning perspective on parameter-to-observable maps](https://arxiv.org/abs/2402.06031)
+
+## Citing
+If you use `learn-eit` in an academic paper, please cite the main reference ``Extension and neural operator approximation of the electrical impedance tomography inverse map'' as follows:
+```
+@article{de2025extension,
+  title={Extension and neural operator approximation of the electrical impedance tomography inverse map},
+  author={{de Hoop}, Maarten V and Kovachki, Nikola B and Lassas, Matti and Nelsen, Nicholas H},
+  journal={preprint arXiv:2511.XXXXX},
+  year={2025}
+}
+```
+
+## Contribute
+You are welcome to submit an issue for any questions related to `learning-eit` or to contribute to the code by submitting pull requests.
+
+## Acknowledgements
+The FNO implementation in `learning-eit` is adapted from the [original implementation](https://github.com/neuraloperator/neuraloperator/tree/master) by Nikola Kovachki and Zongyi Li and its modifications in [fourier-neural-mappings](https://github.com/nickhnelsen/fourier-neural-mappings). The data generation code and regularized D-bar solver are adapted from the publicly available code for the book [Linear and Nonlinear Inverse Problems with Practical Applications](https://epubs.siam.org/doi/book/10.1137/1.9781611972344?mobileUi=0) by Jennifer L. Mueller and Samuli Siltanen. The `matplotlib` formatting used to produce figures is adapted from the [PyApprox package](https://github.com/sandialabs/pyapprox) by John Jakeman.
