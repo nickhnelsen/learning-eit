@@ -1,5 +1,5 @@
 # learning-eit
-learn-eit contains the code used to reproduce the numerical experiments in the paper ``Extension and neural operator approximation of the electrical impedance tomography inverse map.'' It includes:
+learn-eit contains the code used to reproduce the numerical experiments in the paper "[Extension and neural operator approximation of the electrical impedance tomography inverse map](https://arxiv.org/abs/2511.20361)." It includes:
 - Training and evaluation scripts for Fourier Neural Operators (FNOs)
 - MATLAB data generation routines for EIT forward problems
 - Data processing and plotting utilities
@@ -29,19 +29,19 @@ The three datasets in the paper will be made publicly available soon. In the mea
 * Partial Differential Equation Toolbox
 * Image Processing Toolbox
 
-## References
+## Other References
 - [Fourier Neural Operator for Parametric Partial Differential Equations](https://arxiv.org/abs/2010.08895)
 - [Linear and Nonlinear Inverse Problems with Practical Applications](https://epubs.siam.org/doi/book/10.1137/1.9781611972344?mobileUi=0)
 - [Operator learning meets inverse problems: A probabilistic perspective](https://arxiv.org/abs/2508.20207)
 - [An operator learning perspective on parameter-to-observable maps](https://arxiv.org/abs/2402.06031)
 
 ## Citing
-If you use `learn-eit` in an academic paper, please cite the main reference ``Extension and neural operator approximation of the electrical impedance tomography inverse map'' as follows:
+If you use `learn-eit` in an academic paper, please cite the main reference "[Extension and neural operator approximation of the electrical impedance tomography inverse map](https://arxiv.org/abs/2511.20361)" as follows:
 ```
 @article{de2025extension,
   title={Extension and neural operator approximation of the electrical impedance tomography inverse map},
   author={{de Hoop}, Maarten V and Kovachki, Nikola B and Lassas, Matti and Nelsen, Nicholas H},
-  journal={preprint arXiv:2511.XXXXX},
+  journal={preprint arXiv:2511.20361},
   year={2025}
 }
 ```
