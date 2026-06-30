@@ -423,6 +423,10 @@ def make_plot(dataset_name, modes, stats):
     if INVERT_X_AXIS:
         plt.gca().invert_xaxis()
         
+    mean_all = stats[..., 0]
+    positive_vals = mean_all[np.isfinite(mean_all) & (mean_all > 0)]
+    plt.ylim(0.5 * positive_vals.min(), 2.0 * positive_vals.max())
+        
     if dataset_name == "shape":
         plt.ylabel(r'Average Relative $L^1$ Test Error')
         plt.legend(framealpha=1, loc='best', borderpad=borderpad, handlelength=handlelength).set_draggable(True)
