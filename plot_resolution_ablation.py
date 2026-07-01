@@ -72,9 +72,13 @@ DATASETS = {
     },
 }
 
-save_folder = "./results/resolution_ablation/"
+save_folder = "./results/resolution_ablation_viz/"
 os.makedirs(save_folder, exist_ok=True)
 
+FLAG_SAVE_MODE_EXAMPLES = True
+PLOT_EXAMPLE_SEED = 0
+PLOT_EXAMPLE_INDEX = None           # None chooses one random test sample
+PLOT_EXAMPLE_RANDOM_SEED = 1234
 
 ################################################################
 #
@@ -317,6 +321,131 @@ def evaluate_my_loader(model, loader, N_test, mask, type="Test", device=device):
     return float(err)
 
 
+def plot_random_mode_examples(dataset_name,
+                              model,
+                              x_normalizer,
+                              x_test_clean,
+                              y_test,
+                              mask,
+                              modes,
+                              noise_percent=0,
+                              distribution='uniform',
+                              seed=0,
+                              random_index=None,
+                              plot_seed=1234,
+                              N_train=9500,
+                              Noise_train=0,
+                              device=device):
+    """
+    For one random test conductivity, save one 2x2 figure for each Fourier mode M.
+
+    Top row:
+        [mode M NtD kernel used as FNO input] [full resolution NtD kernel]
+    Bottom row:
+        [FNO prediction from mode M kernel]   [true conductivity]
+
+    If noise_percent > 0, the top-left NtD kernel includes noise projected to mode M,
+    matching the ablation evaluation setup.
+    """
+
+    model.eval()
+
+    N_test = x_test_clean.shape[0]
+    if random_index is None:
+        rng = np.random.default_rng(plot_seed)
+        random_index = int(rng.integers(0, N_test))
+
+    example_folder = os.path.join(save_folder, "mode_examples", dataset_name)
+    os.makedirs(example_folder, exist_ok=True)
+
+    x_full = x_test_clean[random_index:random_index+1].contiguous()
+    y_true = y_test[random_index].detach().cpu()
+
+    mask_device = mask.to(device)
+
+    for M in modes:
+        # Project full-resolution NtD kernel to mode M.
+        x_low_clean = projection_fourier(x_full, M)
+
+        # Add noise in the same lower Fourier band, if requested.
+        if noise_percent > 0:
+            noise = get_noise_only(x_low_clean, noise_percent, distribution, device=x_low_clean.device)
+            noise = projection_fourier(noise, M)
+            x_mode = x_low_clean + noise
+        else:
+            x_mode = x_low_clean
+
+        # FNO prediction from the mode M input.
+        x_in = x_normalizer.encode(x_mode).unsqueeze(1).to(device)
+
+        with torch.no_grad():
+            pred = model(x_in)
+
+            # Handle either (B, H, W) or (B, 1, H, W) outputs.
+            if pred.ndim == 4 and pred.shape[1] == 1:
+                pred = pred[:, 0, :, :]
+
+            pred = pred * mask_device + (~mask_device)
+            pred = pred[0].detach().cpu()
+
+        x_mode_plot = x_normalizer.encode(x_mode)[0].detach().cpu()
+        x_full_plot = x_normalizer.encode(x_full)[0].detach().cpu()
+
+        # Shared color scales for meaningful side-by-side comparisons.
+        kernel_vmin = min(float(x_mode_plot.min()), float(x_full_plot.min()))
+        kernel_vmax = max(float(x_mode_plot.max()), float(x_full_plot.max()))
+
+        cond_vmin = min(float(pred.min()), float(y_true.min()))
+        cond_vmax = max(float(pred.max()), float(y_true.max()))
+
+        fig, axs = plt.subplots(2, 2, figsize=(9, 8), constrained_layout=True)
+
+        im00 = axs[0, 0].imshow(x_mode_plot, origin='lower',
+                                vmin=kernel_vmin, vmax=kernel_vmax)
+        axs[0, 0].set_title(rf"Mode $M={M}$ NtD kernel")
+        axs[0, 0].axis("off")
+        fig.colorbar(im00, ax=axs[0, 0], fraction=0.046, pad=0.04)
+
+        im01 = axs[0, 1].imshow(x_full_plot, origin='lower',
+                                vmin=kernel_vmin, vmax=kernel_vmax)
+        axs[0, 1].set_title("Full resolution NtD kernel")
+        axs[0, 1].axis("off")
+        fig.colorbar(im01, ax=axs[0, 1], fraction=0.046, pad=0.04)
+
+        im10 = axs[1, 0].imshow(pred, origin='lower',
+                                vmin=cond_vmin, vmax=cond_vmax)
+        axs[1, 0].set_title(rf"FNO prediction from $M={M}$")
+        axs[1, 0].axis("off")
+        fig.colorbar(im10, ax=axs[1, 0], fraction=0.046, pad=0.04)
+
+        im11 = axs[1, 1].imshow(y_true, origin='lower',
+                                vmin=cond_vmin, vmax=cond_vmax)
+        axs[1, 1].set_title("True conductivity")
+        axs[1, 1].axis("off")
+        fig.colorbar(im11, ax=axs[1, 1], fraction=0.046, pad=0.04)
+
+        fig.suptitle(
+            rf"{dataset_name.replace('_', ' ').title()}, "
+            rf"test index {random_index}, noise {noise_percent}\%, seed {seed}",
+            y=1.02
+        )
+
+        if FLAG_SAVE_PLOTS:
+            pdf_path = os.path.join(
+                example_folder,
+                f"{dataset_name}_example_idx{random_index}_M{M}_Noise{noise_percent}_Seed{seed}_Ntrain{N_train}_Noisetrain{Noise_train}.pdf"
+            )
+            png_path = os.path.join(
+                example_folder,
+                f"{dataset_name}_example_idx{random_index}_M{M}_Noise{noise_percent}_Seed{seed}_Ntrain{N_train}_Noisetrain{Noise_train}.png"
+            )
+            plt.savefig(pdf_path, format='pdf')
+            plt.savefig(png_path, format='png', dpi=300)
+            print("Saved", pdf_path)
+
+        plt.close(fig)
+
+
 def compute_dataset(dataset_name, ds_cfg, device=device):
     print("\n" + "="*70)
     print("Dataset:", dataset_name)
@@ -356,6 +485,24 @@ def compute_dataset(dataset_name, ds_cfg, device=device):
             raise RuntimeError("Different seeds/noise levels gave different valid Fourier modes.")
             
         for j, noise_percent in enumerate(Noise_list):
+            # Visualization
+            if FLAG_SAVE_MODE_EXAMPLES and seed == PLOT_EXAMPLE_SEED:
+                plot_random_mode_examples(dataset_name,
+                                      model,
+                                      x_normalizer,
+                                      x_test_clean,
+                                      y_test,
+                                      mask,
+                                      mode_list_here,
+                                      noise_percent=noise_percent,
+                                      distribution=distribution,
+                                      seed=seed,
+                                      random_index=PLOT_EXAMPLE_INDEX,
+                                      plot_seed=PLOT_EXAMPLE_RANDOM_SEED,
+                                      N_train=N_train,
+                                      Noise_train=Noise_train,
+                                      device=device)
+                
             print(f"\nStarting test noise level {noise_percent}")
             start = default_timer()
             for i, M in enumerate(mode_list_here):
