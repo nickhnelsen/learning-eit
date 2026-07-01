@@ -35,14 +35,16 @@ FLAG_SAVE_PLOTS = True
 FLAG_SAVE_ERRORS = True
 FLAG_BEST = True
 FLAG_SHUFFLE_FROM_CHECKPOINT = True
+FLAG_USE_ALL_NORMALIZERS = True
+FLAG_NORMALIZER_ON_NOISY_TRAIN = True
 
 # Best models are loaded from
 #   ./results/{exp_date}/{load_prefix}_N{N_train}_Noise{noise}_Seed{seed}/model_best.pt
 N_train = 9500
-Noise_train = 30
+Noise_train = 0
 Noise_list = [0, 3, 10, 30]
 Seed_list = [0, 1, 2, 3, 4]
-Fourier_modes_list = [256, 128, 64, 32, 16, 8, 4]
+Fourier_modes_list = [256, 128, 64, 32, 16, 8, 4, 2]
 
 # Plot uncertainty: mean +/- n_std * std over Seed_list.
 n_std = 2
@@ -51,7 +53,6 @@ INVERT_X_AXIS = not True
 
 TEST_BATCH_SIZE = 64
 my_test_distribution = 'uniform'
-FLAG_NORMALIZER_ON_NOISY_TRAIN = True
 
 
 DATASETS = {
@@ -72,7 +73,7 @@ DATASETS = {
     },
 }
 
-save_folder = "./results/resolution_ablation_viz/"
+save_folder = "./results/resolution_ablation_viz_modenorm/"
 os.makedirs(save_folder, exist_ok=True)
 
 FLAG_SAVE_MODE_EXAMPLES = True
@@ -82,7 +83,7 @@ PLOT_EXAMPLE_RANDOM_SEED = 1234
 
 ################################################################
 #
-# Plotting style copied from plot_sweep_data.py
+# Plotting style
 #
 ################################################################
 
@@ -279,6 +280,13 @@ def load_test_data(config, ds_cfg):
     return x_test.contiguous(), y_test.contiguous(), mask.contiguous()
 
 
+def get_normalizers_per_mode(x_train, mode_list=Fourier_modes_list):
+    return {
+        M: UnitGaussianNormalizer(projection_fourier(x_train, M))
+        for M in mode_list
+    }
+
+
 ################################################################
 #
 # Fourier projection
@@ -323,7 +331,7 @@ def evaluate_my_loader(model, loader, N_test, mask, type="Test", device=device):
 
 def plot_random_mode_examples(dataset_name,
                               model,
-                              x_normalizer,
+                              x_normalizer_dict,
                               x_test_clean,
                               y_test,
                               mask,
@@ -362,6 +370,8 @@ def plot_random_mode_examples(dataset_name,
     y_true = y_test[random_index].detach().cpu()
 
     mask_device = mask.to(device)
+    
+    M_max = max(modes)
 
     for M in modes:
         # Project full-resolution NtD kernel to mode M.
@@ -376,7 +386,7 @@ def plot_random_mode_examples(dataset_name,
             x_mode = x_low_clean
 
         # FNO prediction from the mode M input.
-        x_in = x_normalizer.encode(x_mode).unsqueeze(1).to(device)
+        x_in = x_normalizer_dict[M].encode(x_mode).unsqueeze(1).to(device)
 
         with torch.no_grad():
             pred = model(x_in)
@@ -388,8 +398,8 @@ def plot_random_mode_examples(dataset_name,
             pred = pred * mask_device + (~mask_device)
             pred = pred[0].detach().cpu()
 
-        x_mode_plot = x_normalizer.encode(x_mode)[0].detach().cpu()
-        x_full_plot = x_normalizer.encode(x_full)[0].detach().cpu()
+        x_mode_plot = x_normalizer_dict[M].encode(x_mode)[0].detach().cpu()
+        x_full_plot = x_normalizer_dict[M_max].encode(x_full)[0].detach().cpu()
 
         # Shared color scales for meaningful side-by-side comparisons.
         kernel_vmin = min(float(x_mode_plot.min()), float(x_full_plot.min()))
@@ -426,8 +436,7 @@ def plot_random_mode_examples(dataset_name,
 
         fig.suptitle(
             rf"{dataset_name.replace('_', ' ').title()}, "
-            rf"test index {random_index}, noise {noise_percent}\%, seed {seed}",
-            y=1.02
+            rf"test index {random_index}, noise {noise_percent}\%, seed {seed}"
         )
 
         if FLAG_SAVE_PLOTS:
@@ -484,12 +493,20 @@ def compute_dataset(dataset_name, ds_cfg, device=device):
         elif valid_modes != mode_list_here:
             raise RuntimeError("Different seeds/noise levels gave different valid Fourier modes.")
             
+        if FLAG_USE_ALL_NORMALIZERS:
+            normalizers = get_normalizers_per_mode(x_train, mode_list_here)
+        else:
+            normalizers = {
+                M: x_normalizer
+                for M in mode_list_here
+            }
+            
         for j, noise_percent in enumerate(Noise_list):
             # Visualization
             if FLAG_SAVE_MODE_EXAMPLES and seed == PLOT_EXAMPLE_SEED:
                 plot_random_mode_examples(dataset_name,
                                       model,
-                                      x_normalizer,
+                                      normalizers,
                                       x_test_clean,
                                       y_test,
                                       mask,
@@ -513,7 +530,7 @@ def compute_dataset(dataset_name, ds_cfg, device=device):
                 x_eval = projection_fourier(x_eval, M)
                 x_eval = x_low_clean + x_eval
                 
-                x_eval = x_normalizer.encode(x_eval).unsqueeze(1)
+                x_eval = normalizers[M].encode(x_eval).unsqueeze(1)
                 test_loader = DataLoader(TensorDatasetID(x_eval, y_test), batch_size=TEST_BATCH_SIZE, shuffle=False)
                 errors[k, j, i] = evaluate_my_loader(model, test_loader, N_test, mask, type="Test", device=device)
                 print(f"  modes={M:4d}, err={errors[k, j, i]:.6e}")
