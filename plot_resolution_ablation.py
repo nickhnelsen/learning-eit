@@ -422,12 +422,15 @@ def plot_random_mode_examples(dataset_name,
         axs[0, 1].axis("off")
         fig.colorbar(im01, ax=axs[0, 1], fraction=0.046, pad=0.04)
 
+
+        pred = pred[..., ~mask] = float('nan')
         im10 = axs[1, 0].imshow(pred, origin='lower',
                                 vmin=cond_vmin, vmax=cond_vmax)
         axs[1, 0].set_title(rf"FNO prediction from $M={M}$")
         axs[1, 0].axis("off")
         fig.colorbar(im10, ax=axs[1, 0], fraction=0.046, pad=0.04)
 
+        y_true = y_true[..., ~mask] = float('nan')
         im11 = axs[1, 1].imshow(y_true, origin='lower',
                                 vmin=cond_vmin, vmax=cond_vmax)
         axs[1, 1].set_title("True conductivity")
