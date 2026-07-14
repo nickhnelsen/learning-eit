@@ -24,9 +24,10 @@ print("Device is", device)
 FLAG_BEST = True
 FLAG_SAVE_PDF = not True
 FLAG_SHUFFLE_FROM_CHECKPOINT = True
+REAL_NORMALIZER = True
 
 N_train = 9500
-Noise_train = 0
+Noise_train = 10
 MODEL_SEED = 0
 
 NORMALIZER_MODES = 16
@@ -139,7 +140,6 @@ def training_data_folder(config, ds_cfg):
     return config["data_folder"]
 
 
-# TODO: add noise to data depending on NOISE_TRAIN
 def load_train_kernel_for_normalizer(config, ds_cfg, load_path):
     data_folder = training_data_folder(config, ds_cfg)
     kernel_file = ds_cfg.get("train_kernel_file", "kernel.pt")
@@ -153,7 +153,7 @@ def load_train_kernel_for_normalizer(config, ds_cfg, load_path):
         _load_tensor(os.path.join(data_folder, kernel_file), kernel_key)
     )
     x_train = x_train[..., ::sub_in_test, ::sub_in_test]
-    x_train = x_train[: -(N_val + N_test)]
+    x_train = x_train[: -(N_val + N_test), ...]
 
     if config.get("FLAG_SHUFFLE", False) and FLAG_SHUFFLE_FROM_CHECKPOINT:
         shuffle_idx = torch.load(
@@ -211,12 +211,17 @@ def load_real_kernels():
 
 
 def projection_fourier(x, num_modes):
-    """Project real kernels to a low Fourier block and return them on the same grid."""
-    spatial_shape = x.shape[-2:]
-    xhat = torch.fft.rfft2(x, norm="forward")
-    xhat_low = resize_rfft2(xhat, (num_modes, num_modes))
-    xhat_pad = resize_rfft2(xhat_low, spatial_shape)
-    return torch.fft.irfft2(xhat_pad, s=spatial_shape, norm="forward")
+    """
+    Project a real batch x onto the central num_modes x num_modes 2D Fourier block, and pads back to physical space
+
+    x: (..., J1, J2), real tensor
+    """
+    s = x.shape[-2], x.shape[-1]                            # (J1, J2)
+    xhat = torch.fft.rfft2(x, norm="forward")               # (J1, J2//2+1)
+    xhat_low = resize_rfft2(xhat, (num_modes, num_modes))   # (M, M//2+1)
+    xhat_pad = resize_rfft2(xhat_low, s)                    # (J1, J2//2+1)
+    
+    return torch.fft.irfft2(xhat_pad, s=s, norm="forward")  # (J1, J2)
 
 
 ################################################################
@@ -236,8 +241,6 @@ def phantom_labels():
 
 
 def predict_real_kernels(model, x_normalizer, x_real):
-    # The real kernels are already reconstructed on the 256 x 256 grid from
-    # their low-mode coefficients, so do not project them a second time.
     x_in = x_normalizer.encode(x_real).unsqueeze(1).to(device)
 
     with torch.no_grad():
@@ -279,20 +282,32 @@ def save_real_data_plots(dataset_name, x_real, pred, mask):
         fig, axs = plt.subplots(1, 3, figsize=(13.5, 4.4), constrained_layout=True)
 
         im0 = axs[0].imshow(kernel_i, origin="lower")
-        axs[0].set_title("Real NtD kernel")
+        axs[0].set_title("Real NtD Kernel (Normalized)")
         axs[0].axis("off")
         fig.colorbar(im0, ax=axs[0], fraction=0.046, pad=0.04)
+        
+        # Possible orientation adjustments:
+        # pred_plot = pred_i                        # no array transform
+        # pred_plot = np.flipud(pred_i)             # vertical mirror
+        # pred_plot = np.fliplr(pred_i)             # horizontal mirror
+        # pred_plot = pred_i.T                      # interchange x and y
+        # pred_plot = np.rot90(pred_i, 1)           # 90 degrees counterclockwise
+        # pred_plot = np.rot90(pred_i, -1)          # 90 degrees clockwise
+        pred_plot = torch.flip(
+            pred_i.transpose(-2, -1),
+            dims=(-2, -1)
+            )                                       # flip bottom right to top left
 
-        im1 = axs[1].imshow(pred_i, origin="lower")
-        axs[1].set_title(f"{dataset_name.replace('_', ' ').title()} FNO")
+        im1 = axs[1].imshow(pred_plot, origin="upper")
+        axs[1].set_title(f"{dataset_name.replace('_', ' ').title()}, FNO")
         axs[1].axis("off")
         fig.colorbar(im1, ax=axs[1], fraction=0.046, pad=0.04)
 
-        axs[2].imshow(target_photo)
+        axs[2].imshow(target_photo, origin="upper")
         axs[2].set_title("Target")
         axs[2].axis("off")
 
-        fig.suptitle(f"KIT4 phantom {expidx}-{realidx}")
+        fig.suptitle(f"KIT4 Phantom {expidx}-{realidx}")
 
         stem = (
             f"{dataset_name}_fantom_{expidx}_{realidx}"
@@ -308,7 +323,7 @@ def save_real_data_plots(dataset_name, x_real, pred, mask):
         print("Saved", png_path)
 
 
-def compute_dataset(dataset_name, ds_cfg, x_real):
+def compute_dataset(dataset_name, ds_cfg, x_real, real_norm=REAL_NORMALIZER):
     print("\n" + "=" * 70)
     print("Training dataset:", dataset_name)
     print("=" * 70)
@@ -325,9 +340,13 @@ def compute_dataset(dataset_name, ds_cfg, x_real):
             f"but real kernels have grid {tuple(x_real.shape[-2:])}."
         )
 
-    # Match the normalization used in the M=16 resolution-ablation experiment.
-    x_train_low = projection_fourier(x_train, NORMALIZER_MODES)
-    x_normalizer = UnitGaussianNormalizer(x_train_low)
+    if real_norm:
+        x_normalizer = UnitGaussianNormalizer(x_real)
+    else:
+        # Match the normalization used in the M=16 resolution-ablation experiment.
+        x_train_low = projection_fourier(x_train, NORMALIZER_MODES)
+        x_normalizer = UnitGaussianNormalizer(x_train_low)
+        del x_train_low
 
     model = load_model_from_config(config, load_path)
     pred, x_in = predict_real_kernels(model, x_normalizer, x_real)
@@ -335,7 +354,7 @@ def compute_dataset(dataset_name, ds_cfg, x_real):
 
     save_real_data_plots(dataset_name, x_in.squeeze(), pred, mask)
 
-    del model, x_train, x_train_low, x_normalizer, pred
+    del model, x_train, x_normalizer, pred
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
