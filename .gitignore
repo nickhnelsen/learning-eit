@@ -169,6 +169,9 @@ fno_kernel/figures
 **/solver/LS_cgo_2D/data/
 **/results/
 data_generation/solver/data/ND_big.mat
+data_real/KIT4_EIT_Finland
+data_real/Kuopio_challenge
+data_real/KIT4_Dbar_recons_2025
 
 # ---------------------------------------------------------------------------
 # Overrides: always include useful scripts and configuration files
